@@ -3828,6 +3828,7 @@ void PrimaryLogPG::promote_object(ObjectContextRef obc,
 
 void PrimaryLogPG::oio_throttle_get(OpRequestRef op) {
   if (op->get_req()->get_type() == CEPH_MSG_OSD_OP) {
+    dout(30) << "oio_get " << op->get_reqid() << dendl;
     osd->oio_mon.get();
     double cur_load = osd->oio_mon.get_tot();
     double target_load = osd->oio_mon.get_target_load();
@@ -3836,7 +3837,7 @@ void PrimaryLogPG::oio_throttle_get(OpRequestRef op) {
     if (!is_sus && cur_load > target_load) {
       osd->osd->op_shardedwq.set_suspend(true);
 
-      dout(30) << " suspend true "
+      dout(30) << "suspend true"
       << " cur " << cur_load
       << " tar " << target_load
       << dendl;
@@ -3847,6 +3848,7 @@ void PrimaryLogPG::oio_throttle_get(OpRequestRef op) {
 void PrimaryLogPG::oio_throttle_put(OpRequestRef op) {
   if (op->get_req()->get_type() == CEPH_MSG_OSD_OP) {
     double cur_load = osd->oio_mon.get_tot();
+    dout(30) << "oio_put " << op->get_reqid() << dendl;
     osd->oio_mon.put();
     osd->oio_mon.add_load(cur_load);
     bool is_up = osd->oio_mon.update();
@@ -3855,7 +3857,7 @@ void PrimaryLogPG::oio_throttle_put(OpRequestRef op) {
 
     if (is_sus && cur_load <= target_load) {
       osd->osd->op_shardedwq.set_suspend(false);
-      dout(30) << " suspend false "
+      dout(30) << "suspend false"
 	<< " cur " << cur_load
 	<< " tar " << target_load
 	<< dendl;
