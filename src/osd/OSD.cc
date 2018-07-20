@@ -18,6 +18,7 @@
 #include <cctype>
 #include <fstream>
 #include <iostream>
+#include <chrono>
 
 #include <unistd.h>
 #include <sys/stat.h>
@@ -9600,6 +9601,20 @@ void OSD::ShardedOpWQ::_process(uint32_t thread_index, heartbeat_handle_d *hb)
   assert(sdata);
   // peek at spg_t
   sdata->shard_lock.Lock();
+
+  if (sdata->is_throttled()) {
+    sdata->sdata_wait_lock.Lock();
+    if (!sdata->stop_waiting) {
+      sdata->shard_lock.Unlock();
+      sdata->sdata_cond.WaitInterval(sdata->sdata_wait_lock,
+				      std::chrono::milliseconds(40));
+      sdata->sdata_wait_lock.Unlock();
+      sdata->shard_lock.Lock();
+    } else {
+      sdata->sdata_wait_lock.Unlock();
+    }
+  }
+
   if (sdata->pqueue->empty()) {
     sdata->sdata_wait_lock.Lock();
     if (!sdata->stop_waiting) {
@@ -9616,12 +9631,13 @@ void OSD::ShardedOpWQ::_process(uint32_t thread_index, heartbeat_handle_d *hb)
       osd->cct->get_heartbeat_map()->reset_timeout(hb,
 	  osd->cct->_conf->threadpool_default_timeout, 0);
     } else {
-      dout(0) << __func__ << " need return immediately" << dendl;
+      dout(0) << __func__ << " need return immediately, empty" << dendl;
       sdata->sdata_wait_lock.Unlock();
       sdata->shard_lock.Unlock();
       return;
     }
   }
+
   OpQueueItem item = sdata->pqueue->dequeue();
   if (osd->is_stopping()) {
     sdata->shard_lock.Unlock();
