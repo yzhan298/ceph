@@ -2967,6 +2967,9 @@ void OSD::create_logger()
   osd_plb.add_time_avg(
     l_osd_op_prepare_lat, "op_prepare_latency",
     "Latency of client operations (excluding queue time and wait for finished)");
+  osd_plb.add_u64_counter(
+    l_osd_op_queue_size, "op_queue_size",
+    "Size of the op queue");
 
   osd_plb.add_u64_counter(
     l_osd_op_r, "op_r", "Client read operations");
@@ -9264,6 +9267,7 @@ int OSD::init_op_flags(OpRequestRef& op)
 #undef dout_prefix
 #define dout_prefix *_dout << "osd." << osd->get_nodeid() << ":" << shard_id << "." << __func__ << " "
 
+
 void OSDShard::_attach_pg(OSDShardPGSlot *slot, PG *pg)
 {
   dout(10) << pg->pg_id << " " << pg << dendl;
@@ -9639,6 +9643,7 @@ void OSD::ShardedOpWQ::_process(uint32_t thread_index, heartbeat_handle_d *hb)
   }
 
   OpQueueItem item = sdata->pqueue->dequeue();
+  osd->logger->dec(l_osd_op_queue_size);
   if (osd->is_stopping()) {
     sdata->shard_lock.Unlock();
     return;    // OSD shutdown, discard.
@@ -9882,6 +9887,7 @@ void OSD::ShardedOpWQ::_enqueue(OpQueueItem&& item) {
   sdata->sdata_cond.SignalOne();
   sdata->sdata_wait_lock.Unlock();
 
+  osd->logger->inc(l_osd_op_queue_size);
 }
 
 void OSD::ShardedOpWQ::_enqueue_front(OpQueueItem&& item)
@@ -9911,6 +9917,8 @@ void OSD::ShardedOpWQ::_enqueue_front(OpQueueItem&& item)
   sdata->sdata_wait_lock.Lock();
   sdata->sdata_cond.SignalOne();
   sdata->sdata_wait_lock.Unlock();
+
+  osd->logger->inc(l_osd_op_queue_size);
 }
 
 namespace ceph { 
