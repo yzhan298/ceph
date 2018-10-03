@@ -3279,10 +3279,9 @@ class RGWDataSyncProcessorThread : public RGWSyncProcessorThread
   }
 public:
   RGWDataSyncProcessorThread(RGWRados *_store, RGWAsyncRadosProcessor *async_rados,
-                             const string& _source_zone,
-                             rgw::BucketChangeObserver *observer)
+                             const string& _source_zone)
     : RGWSyncProcessorThread(_store, "data-sync"),
-      sync(_store, async_rados, _source_zone, observer),
+      sync(_store, async_rados, _source_zone),
       initialized(false) {}
 
   void wakeup_sync_shards(map<int, set<string> >& shard_ids) {
@@ -3314,7 +3313,7 @@ public:
   }
 };
 
-class RGWSyncLogTrimThread : public RGWSyncProcessorThread
+class RGWSyncLogTrimThread : public RGWSyncProcessorThread, DoutPrefixProvider
 {
   RGWCoroutinesManager crs;
   RGWRados *store;
@@ -3340,7 +3339,7 @@ public:
   int process() override {
     list<RGWCoroutinesStack*> stacks;
     auto meta = new RGWCoroutinesStack(store->ctx(), &crs);
-    meta->call(create_meta_log_trim_cr(store, &http,
+    meta->call(create_meta_log_trim_cr(this, store, &http,
                                        cct->_conf->rgw_md_log_max_shards,
                                        trim_interval));
     stacks.push_back(meta);
@@ -3358,6 +3357,19 @@ public:
     crs.run(stacks);
     return 0;
   }
+
+  // implements DoutPrefixProvider
+  CephContext *get_cct() const override { return store->ctx(); }
+  unsigned get_subsys() const
+  {
+    return dout_subsys;
+  }
+
+  std::ostream& gen_prefix(std::ostream& out) const
+  {
+    return out << "sync log trim: ";
+  }
+
 };
 
 void RGWRados::wakeup_meta_sync_shards(set<int>& shard_ids)
@@ -4667,12 +4679,12 @@ int RGWRados::init_complete()
       ldout(cct, 0) << "ERROR: failed to start bucket trim manager" << dendl;
       return ret;
     }
+    data_log->set_observer(&*bucket_trim);
 
     Mutex::Locker dl(data_sync_thread_lock);
     for (auto iter : zone_data_sync_from_map) {
       ldout(cct, 5) << "starting data sync thread for zone " << iter.first << dendl;
-      auto *thread = new RGWDataSyncProcessorThread(this, async_rados, iter.first,
-                                                    &*bucket_trim);
+      auto *thread = new RGWDataSyncProcessorThread(this, async_rados, iter.first);
       ret = thread->init();
       if (ret < 0) {
         ldout(cct, 0) << "ERROR: failed to initialize data sync thread" << dendl;

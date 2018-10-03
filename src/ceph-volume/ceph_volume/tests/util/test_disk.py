@@ -16,6 +16,36 @@ class TestLsblkParser(object):
         assert result['SIZE'] == '10M'
 
 
+class TestBlkidParser(object):
+
+    def test_parses_whitespace_values(self):
+        output = '''/dev/sdb1: UUID="62416664-cbaf-40bd-9689-10bd337379c3" TYPE="xfs" PART_ENTRY_SCHEME="gpt" PART_ENTRY_NAME="ceph data" PART_ENTRY_UUID="b89c03bc-bf58-4338-a8f8-a2f484852b4f"'''  # noqa
+        result = disk._blkid_parser(output)
+        assert result['PARTLABEL'] == 'ceph data'
+
+    def test_ignores_unmapped(self):
+        output = '''/dev/sdb1: UUID="62416664-cbaf-40bd-9689-10bd337379c3" TYPE="xfs" PART_ENTRY_SCHEME="gpt" PART_ENTRY_NAME="ceph data" PART_ENTRY_UUID="b89c03bc-bf58-4338-a8f8-a2f484852b4f"'''  # noqa
+        result = disk._blkid_parser(output)
+        assert len(result.keys()) == 4
+
+    def test_translates_to_partuuid(self):
+        output = '''/dev/sdb1: UUID="62416664-cbaf-40bd-9689-10bd337379c3" TYPE="xfs" PART_ENTRY_SCHEME="gpt" PART_ENTRY_NAME="ceph data" PART_ENTRY_UUID="b89c03bc-bf58-4338-a8f8-a2f484852b4f"'''  # noqa
+        result = disk._blkid_parser(output)
+        assert result['PARTUUID'] == 'b89c03bc-bf58-4338-a8f8-a2f484852b4f'
+
+
+class TestBlkid(object):
+
+    def test_parses_translated(self, stub_call):
+        output = '''/dev/sdb1: UUID="62416664-cbaf-40bd-9689-10bd337379c3" TYPE="xfs" PART_ENTRY_SCHEME="gpt" PART_ENTRY_NAME="ceph data" PART_ENTRY_UUID="b89c03bc-bf58-4338-a8f8-a2f484852b4f"'''  # noqa
+        stub_call((output.split(), [], 0))
+        result = disk.blkid('/dev/sdb1')
+        assert result['PARTUUID'] == 'b89c03bc-bf58-4338-a8f8-a2f484852b4f'
+        assert result['PARTLABEL'] == 'ceph data'
+        assert result['UUID'] == '62416664-cbaf-40bd-9689-10bd337379c3'
+        assert result['TYPE'] == 'xfs'
+
+
 class TestDeviceFamily(object):
 
     def test_groups_multiple_devices(self, stub_call):
@@ -165,6 +195,15 @@ class TestGetDevices(object):
             _sys_block_path=str(tmpdir),
             _dev_path=str(tmpdir),
             _mapper_path=str(tmpdir))
+        assert result == {}
+
+    def test_no_devices_are_found_errors(self, tmpdir):
+        block_path, dev_path, mapper_path = self.setup_paths(tmpdir)
+        os.makedirs(os.path.join(block_path, 'sda'))
+        result = disk.get_devices(
+            _sys_block_path=block_path, # has 1 device
+            _dev_path=str(tmpdir), # exists but no devices
+            _mapper_path='/does/not/exist/path') # does not exist
         assert result == {}
 
     def test_sda_block_is_found(self, tmpfile, tmpdir):

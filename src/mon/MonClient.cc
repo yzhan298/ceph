@@ -103,11 +103,14 @@ int MonClient::get_monmap_and_config()
   interval.set_from_double(cct->_conf->mon_client_hunt_interval);
 
   cct->init_crypto();
+  auto shutdown_crypto = make_scope_guard([this] {
+    cct->shutdown_crypto();
+  });
 
   int r = build_initial_monmap();
   if (r < 0) {
     lderr(cct) << __func__ << " cannot identify monitors to contact" << dendl;
-    goto out;
+    return r;
   }
 
   messenger = Messenger::create_client_messenger(
@@ -115,11 +118,20 @@ int MonClient::get_monmap_and_config()
   ceph_assert(messenger);
   messenger->add_dispatcher_head(this);
   messenger->start();
+  auto shutdown_msgr = make_scope_guard([this] {
+    messenger->shutdown();
+    messenger->wait();
+    delete messenger;
+    messenger = nullptr;
+    if (!monmap.fsid.is_zero()) {
+      cct->_conf.set_val("fsid", stringify(monmap.fsid));
+    }
+  });
 
   while (tries-- > 0) {
     r = init();
     if (r < 0) {
-      goto out_msgr;
+      return r;
     }
     r = authenticate(cct->_conf->client_mount_timeout);
     if (r == -ETIMEDOUT) {
@@ -154,21 +166,7 @@ int MonClient::get_monmap_and_config()
     continue;
   }
 
-out_shutdown:
   shutdown();
-
-out_msgr:
-  messenger->shutdown();
-  messenger->wait();
-  delete messenger;
-  messenger = nullptr;
-
-  if (!monmap.fsid.is_zero()) {
-    cct->_conf.set_val("fsid", stringify(monmap.fsid));
-  }
-
-out:
-  cct->shutdown_crypto();
   return r;
 }
 
@@ -428,7 +426,7 @@ int MonClient::init()
   }
 
   rotating_secrets.reset(
-    new RotatingKeyRing<LockPolicy::MUTEX>(cct, cct->get_module_type(), keyring.get()));
+    new RotatingKeyRing(cct, cct->get_module_type(), keyring.get()));
 
   initialized = true;
 
@@ -1230,7 +1228,7 @@ void MonConnection::start(epoch_t epoch,
 int MonConnection::handle_auth(MAuthReply* m,
 			       const EntityName& entity_name,
 			       uint32_t want_keys,
-			       RotatingKeyRing<LockPolicy::MUTEX>* keyring)
+			       RotatingKeyRing* keyring)
 {
   if (state == State::NEGOTIATING) {
     int r = _negotiate(m, entity_name, want_keys, keyring);
@@ -1249,7 +1247,7 @@ int MonConnection::handle_auth(MAuthReply* m,
 int MonConnection::_negotiate(MAuthReply *m,
 			      const EntityName& entity_name,
 			      uint32_t want_keys,
-			      RotatingKeyRing<LockPolicy::MUTEX>* keyring)
+			      RotatingKeyRing* keyring)
 {
   if (auth && (int)m->protocol == auth->get_protocol()) {
     // good, negotiation completed
