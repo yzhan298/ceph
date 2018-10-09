@@ -458,7 +458,7 @@ endif (WITH_RADOSGW)
 option(WITH_CEPHFS "CephFS is enabled" ON)
 
 #option for Mgr
-option(WITH_MGR "ceph-mgr is enabled" ON)
+option(WITH_MGR "ceph-mgr is enabled" OFF)
 if(WITH_MGR)
   # Please specify 3 or 3.[0-7] if you want to build with python3 support.
   # FindPyhonInterp and FindPythonLibs think they belong to different families.
@@ -617,7 +617,7 @@ endif()
 set(Boost_USE_MULTITHREADED ON)
 
 # dashboard angular2 frontend
-option(WITH_MGR_DASHBOARD_FRONTEND "Build the mgr/dashboard frontend using `npm`" ON)
+option(WITH_MGR_DASHBOARD_FRONTEND "Build the mgr/dashboard frontend using `npm`" OFF)
 
 include_directories(SYSTEM ${PROJECT_BINARY_DIR}/include)
 
