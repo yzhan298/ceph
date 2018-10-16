@@ -43,6 +43,8 @@
 #include "BlockDevice.h"
 #include "common/EventTrace.h"
 
+#include "common/BackTrace.h"
+
 class Allocator;
 class FreelistManager;
 class BlueFS;
