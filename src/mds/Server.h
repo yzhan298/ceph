@@ -22,6 +22,8 @@
 #include "messages/MClientRequest.h"
 #include "messages/MClientSession.h"
 #include "messages/MClientSnap.h"
+#include "messages/MClientReclaim.h"
+#include "messages/MClientReclaimReply.h"
 #include "messages/MLock.h"
 
 #include "MDSRank.h"
@@ -33,8 +35,8 @@ class PerfCounters;
 class LogEvent;
 class EMetaBlob;
 class EUpdate;
-struct SnapInfo;
 class MDLog;
+struct SnapInfo;
 
 enum {
   l_mdss_first = 1000,
@@ -142,6 +144,14 @@ public:
   void kill_session(Session *session, Context *on_safe);
   size_t apply_blacklist(const std::set<entity_addr_t> &blacklist);
   void journal_close_session(Session *session, int state, Context *on_safe);
+
+  set<client_t> client_reclaim_gather;
+  size_t get_num_pending_reclaim() const { return client_reclaim_gather.size(); }
+  Session *find_session_by_uuid(std::string_view uuid);
+  void reclaim_session(Session *session, const MClientReclaim::const_ref &m);
+  void finish_reclaim_session(Session *session, const MClientReclaimReply::ref &reply=nullptr);
+  void handle_client_reclaim(const MClientReclaim::const_ref &m);
+
   void reconnect_clients(MDSInternalContext *reconnect_done_);
   void handle_client_reconnect(const MClientReconnect::const_ref &m);
   void infer_supported_features(Session *session, client_metadata_t& client_metadata);
@@ -152,7 +162,8 @@ public:
   void reconnect_tick();
   void recover_filelocks(CInode *in, bufferlist locks, int64_t client);
 
-  void recall_client_state(void);
+  void recall_client_state(double ratio, bool flush_client_session,
+                           MDSGatherBuilder *gather);
   void force_clients_readonly();
 
   // -- requests --
@@ -326,6 +337,7 @@ public:
 
 private:
   void reply_client_request(MDRequestRef& mdr, const MClientReply::ref &reply);
+  void flush_session(Session *session, MDSGatherBuilder *gather);
 };
 
 #endif

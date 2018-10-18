@@ -58,8 +58,9 @@ class MClientRequest;
 class MClientSession;
 class MClientRequest;
 class MClientRequestForward;
-struct MClientLease;
+class MClientLease;
 class MClientCaps;
+class MClientReclaimReply;
 
 struct DirStat;
 struct LeaseStat;
@@ -296,6 +297,12 @@ public:
   void unmount();
   void abort_conn();
 
+  void set_uuid(const std::string& uuid);
+  void set_session_timeout(unsigned timeout);
+  int start_reclaim(const std::string& uuid, unsigned flags,
+		    const std::string& fs_name);
+  void finish_reclaim();
+
   int mds_command(
     const std::string &mds_spec,
     const std::vector<std::string>& cmd,
@@ -485,7 +492,7 @@ public:
 
   snapid_t ll_get_snapid(Inode *in);
   vinodeno_t ll_get_vino(Inode *in) {
-    Mutex::Locker lock(client_lock);
+    std::lock_guard lock(client_lock);
     return _get_vino(in);
   }
   // get inode from faked ino
@@ -862,7 +869,10 @@ protected:
   void put_inode(Inode *in, int n=1);
   void close_dir(Dir *dir);
 
+  int subscribe_mdsmap(const std::string &fs_name="");
+
   void _abort_mds_sessions(int err);
+
   // same as unmount() but for when the client_lock is already held
   void _unmount(bool abort);
 
@@ -927,6 +937,8 @@ protected:
   bool is_quota_bytes_approaching(Inode *in, const UserPerm& perms);
 
   int check_pool_perm(Inode *in, int need);
+
+  void handle_client_reclaim_reply(MClientReclaimReply *reply);
 
   /**
    * Call this when an OSDMap is seen with a full flag (global or per pool)
@@ -1276,6 +1288,12 @@ private:
   list<Cond*> waiting_for_pool_perm;
 
   uint64_t retries_on_invalidate = 0;
+
+  // state reclaim
+  list<Cond*> waiting_for_reclaim;
+  int reclaim_errno = 0;
+  epoch_t reclaim_osd_epoch = 0;
+  entity_addrvec_t reclaim_target_addrs;
 };
 
 /**

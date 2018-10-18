@@ -21,6 +21,7 @@
 
 #include "mgr/mgr_commands.h"
 #include "mgr/DaemonHealthMetricCollector.h"
+#include "mgr/OSDPerfMetricCollector.h"
 #include "mon/MonCommand.h"
 
 #include "messages/MMgrOpen.h"
@@ -87,7 +88,9 @@ DaemonServer::DaemonServer(MonClient *monc_,
       pgmap_ready(false),
       timer(g_ceph_context, lock),
       shutting_down(false),
-      tick_event(nullptr)
+      tick_event(nullptr),
+      osd_perf_metric_collector_listener(this),
+      osd_perf_metric_collector(osd_perf_metric_collector_listener)
 {
   g_conf().add_observer(this);
 }
@@ -158,88 +161,61 @@ entity_addrvec_t DaemonServer::get_myaddrs() const
   return msgr->get_myaddrs();
 }
 
-
-bool DaemonServer::ms_verify_authorizer(
-  Connection *con,
-  int peer_type,
-  int protocol,
-  ceph::bufferlist& authorizer_data,
-  ceph::bufferlist& authorizer_reply,
-  bool& is_valid,
-  CryptoKey& session_key,
-  std::unique_ptr<AuthAuthorizerChallenge> *challenge)
+KeyStore *DaemonServer::ms_get_auth1_authorizer_keystore()
 {
-  AuthAuthorizeHandler *handler = nullptr;
-  if (peer_type == CEPH_ENTITY_TYPE_OSD ||
-      peer_type == CEPH_ENTITY_TYPE_MON ||
-      peer_type == CEPH_ENTITY_TYPE_MDS ||
-      peer_type == CEPH_ENTITY_TYPE_MGR) {
-    handler = auth_cluster_registry.get_handler(protocol);
-  } else {
-    handler = auth_service_registry.get_handler(protocol);
-  }
-  if (!handler) {
-    dout(0) << "No AuthAuthorizeHandler found for protocol " << protocol << dendl;
-    is_valid = false;
-    return true;
-  }
-
-  MgrSessionRef s(new MgrSession(cct));
-  s->inst.addr = con->get_peer_addr();
-  AuthCapsInfo caps_info;
-
-  if (auto keys = monc->rotating_secrets.get(); keys) {
-    is_valid = handler->verify_authorizer(
-      cct, keys,
-      authorizer_data,
-      authorizer_reply, s->entity_name,
-      s->global_id, caps_info,
-      session_key,
-      challenge);
-  } else {
-    dout(10) << __func__ << " no rotating_keys (yet), denied" << dendl;
-    is_valid = false;
-  }
-
-  if (is_valid) {
-    if (caps_info.allow_all) {
-      dout(10) << " session " << s << " " << s->entity_name
-	       << " allow_all" << dendl;
-      s->caps.set_allow_all();
-    }
-    if (caps_info.caps.length() > 0) {
-      auto p = caps_info.caps.cbegin();
-      string str;
-      try {
-	decode(str, p);
-      }
-      catch (buffer::error& e) {
-        is_valid = false;
-      }
-      bool success = s->caps.parse(str);
-      if (success) {
-	dout(10) << " session " << s << " " << s->entity_name
-		 << " has caps " << s->caps << " '" << str << "'" << dendl;
-      } else {
-	dout(10) << " session " << s << " " << s->entity_name
-		 << " failed to parse caps '" << str << "'" << dendl;
-	is_valid = false;
-      }
-    }
-    con->set_priv(s->get());
-
-    if (peer_type == CEPH_ENTITY_TYPE_OSD) {
-      Mutex::Locker l(lock);
-      s->osd_id = atoi(s->entity_name.get_id().c_str());
-      dout(10) << "registering osd." << s->osd_id << " session "
-	       << s << " con " << con << dendl;
-      osd_cons[s->osd_id].insert(con);
-    }
-  }
-
-  return true;
+  return monc->rotating_secrets.get();
 }
 
+int DaemonServer::ms_handle_authentication(Connection *con)
+{
+  int ret = 0;
+  MgrSession *s = new MgrSession(cct);
+  con->set_priv(s->get());
+  s->inst.addr = con->get_peer_addr();
+  s->entity_name = con->peer_name;
+  dout(10) << __func__ << " new session " << s << " con " << con
+	   << " entity " << con->peer_name
+	   << " addr " << con->get_peer_addrs()
+	   << dendl;
+
+  AuthCapsInfo &caps_info = con->get_peer_caps_info();
+  if (caps_info.allow_all) {
+    dout(10) << " session " << s << " " << s->entity_name
+	     << " allow_all" << dendl;
+    s->caps.set_allow_all();
+  }
+
+  if (caps_info.caps.length() > 0) {
+    auto p = caps_info.caps.cbegin();
+    string str;
+    try {
+      decode(str, p);
+    }
+    catch (buffer::error& e) {
+      ret = -EPERM;
+    }
+    bool success = s->caps.parse(str);
+    if (success) {
+      dout(10) << " session " << s << " " << s->entity_name
+	       << " has caps " << s->caps << " '" << str << "'" << dendl;
+      ret = 1;
+    } else {
+      dout(10) << " session " << s << " " << s->entity_name
+	       << " failed to parse caps '" << str << "'" << dendl;
+      ret = -EPERM;
+    }
+  }
+
+  if (con->get_peer_type() == CEPH_ENTITY_TYPE_OSD) {
+    Mutex::Locker l(lock);
+    s->osd_id = atoi(s->entity_name.get_id().c_str());
+    dout(10) << "registering osd." << s->osd_id << " session "
+	     << s << " con " << con << dendl;
+    osd_cons[s->osd_id].insert(con);
+  }
+
+  return ret;
+}
 
 bool DaemonServer::ms_get_authorizer(int dest_type,
     AuthAuthorizer **authorizer, bool force_new)
@@ -386,6 +362,22 @@ void DaemonServer::schedule_tick(double delay_sec)
 {
   Mutex::Locker l(lock);
   schedule_tick_locked(delay_sec);
+}
+
+void DaemonServer::handle_osd_perf_metric_query_updated()
+{
+  dout(10) << dendl;
+
+  // Send a fresh MMgrConfigure to all clients, so that they can follow
+  // the new policy for transmitting stats
+  finisher.queue(new FunctionContext([this](int r) {
+        Mutex::Locker l(lock);
+        for (auto &c : daemon_connections) {
+          if (c->peer_is_osd()) {
+            _send_configure(c);
+          }
+        }
+      }));
 }
 
 void DaemonServer::shutdown()
@@ -991,6 +983,7 @@ bool DaemonServer::_handle_command(
       ss << "pg " << pgid << " primary osd." << acting_primary
 	 << " is not currently connected";
       cmdctx->reply(-EAGAIN, ss);
+      return true;
     }
     for (auto& con : p->second) {
       if (HAVE_FEATURE(con->get_features(), SERVER_MIMIC)) {
@@ -2000,6 +1993,14 @@ bool DaemonServer::_handle_command(
     }
     return true;
   } else {
+    if (!pgmap_ready) {
+      ss << "Warning: due to ceph-mgr restart, some PG states may not be up to date\n";
+    }
+    if (f) {
+       f->open_object_section("pg_info");
+       f->dump_bool("pg_ready", pgmap_ready);
+    }
+
     // fall back to feeding command to PGMap
     r = cluster_state.with_pgmap([&](const PGMap& pg_map) {
 	return cluster_state.with_osdmap([&](const OSDMap& osdmap) {
@@ -2008,6 +2009,10 @@ bool DaemonServer::_handle_command(
 	  });
       });
 
+    if (f) {
+      f->close_section();
+      f->flush(cmdctx->odata);
+    }
     if (r != -EOPNOTSUPP) {
       cmdctx->reply(r, ss);
       return true;
@@ -2511,6 +2516,22 @@ void DaemonServer::_send_configure(ConnectionRef c)
   auto configure = new MMgrConfigure();
   configure->stats_period = g_conf().get_val<int64_t>("mgr_stats_period");
   configure->stats_threshold = g_conf().get_val<int64_t>("mgr_stats_threshold");
+
+  if (c->peer_is_osd()) {
+    configure->osd_perf_metric_queries =
+        osd_perf_metric_collector.get_queries();
+  }
+
   c->send_message(configure);
 }
 
+OSDPerfMetricQueryID DaemonServer::add_osd_perf_query(
+  const OSDPerfMetricQuery &query)
+{
+  return osd_perf_metric_collector.add_query(query);
+}
+
+int DaemonServer::remove_osd_perf_query(OSDPerfMetricQueryID query_id)
+{
+  return osd_perf_metric_collector.remove_query(query_id);
+}

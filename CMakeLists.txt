@@ -34,6 +34,12 @@ elseif(CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
   FIND_PACKAGE(Threads)
 endif(CMAKE_SYSTEM_NAME MATCHES "Linux")
 
+if(CMAKE_CXX_COMPILER_ID STREQUAL GNU)
+  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 7)
+    message(FATAL_ERROR "GCC 7+ required due to C++17 requirements")
+  endif()
+endif()
+
 option(WITH_CCACHE "Build with ccache.")
 if(WITH_CCACHE)
   find_program(CCACHE_FOUND ccache)
@@ -380,8 +386,7 @@ find_package(OpenSSL REQUIRED)
 # TODO: use NSS only for validation of the OpenSSL-based implementations
 set(USE_NSS 1)
 set(USE_OPENSSL 1)
-set(CRYPTO_LIBS ${NSS_LIBRARIES} ${NSPR_LIBRARIES} ${OPENSSL_LIBRARIES})
-set(SSL_LIBRARIES ${NSS_LIBRARIES} ${OPENSSL_LIBRARIES})
+set(CRYPTO_LIBS ${NSS_LIBRARIES} ${NSPR_LIBRARIES} OpenSSL::Crypto)
 
 option(WITH_XIO "Enable XIO messaging" OFF)
 if(WITH_XIO)

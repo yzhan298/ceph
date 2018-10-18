@@ -22,8 +22,12 @@
 #include <boost/scope_exit.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 
+#include "json_spirit/json_spirit_reader.h"
+#include "json_spirit/json_spirit_writer.h"
+
 #include "Monitor.h"
 #include "common/version.h"
+#include "common/blkdev.h"
 
 #include "osd/OSDMap.h"
 
@@ -2094,6 +2098,18 @@ void Monitor::collect_metadata(Metadata *m)
   collect_sys_info(m, g_ceph_context);
   (*m)["addr"] = stringify(messenger->get_myaddr());
   (*m)["compression_algorithms"] = collect_compression_algorithms();
+
+  // infer storage device
+  string devname = store->get_devname();
+  if (devname.size()) {
+    (*m)["devices"] = devname;
+    string id = get_device_id(devname);
+    if (id.size()) {
+      (*m)["device_ids"] = string(devname) + "=" + id;
+    } else {
+      derr << "failed to get devid for " << devname << dendl;
+    }
+  }
 }
 
 void Monitor::finish_election()
@@ -2906,8 +2922,7 @@ void Monitor::handle_command(MonOpRequestRef op)
     return;
   }
 
-  auto priv = m->get_connection()->get_priv();
-  auto session = static_cast<MonSession *>(priv.get());
+  MonSession *session = op->get_session();
   if (!session) {
     dout(5) << __func__ << " dropping stray message " << *m << dendl;
     return;
@@ -3588,6 +3603,39 @@ void Monitor::handle_command(MonOpRequestRef op)
     f->flush(rdata);
     rs = "";
     r = 0;
+  } else if (prefix == "smart") {
+    string want_devid;
+    cmd_getval(cct, cmdmap, "devid", want_devid);
+
+    string dev = store->get_devname();
+    string devid = get_device_id(dev);
+    if (want_devid.size() && want_devid != devid) {
+      r = -ENOENT;
+    } else {
+      uint64_t smart_timeout = cct->_conf.get_val<uint64_t>(
+	"mon_smart_report_timeout");
+      json_spirit::mObject json_map;
+      json_spirit::mValue smart_json;
+      std::string result;
+      if (block_device_run_smartctl(("/dev/" + dev).c_str(), smart_timeout,
+				    &result)) {
+	dout(10) << "probe_smart_device failed for /dev/" << dev << dendl;
+	result = "{\"error\": \"smartctl failed\", \"dev\": \"" + dev +
+	  "\", \"smartctl_error\": \"" + result + "\"}";
+      }
+
+      if (!json_spirit::read(result, smart_json)) {
+	derr << "smartctl JSON output of /dev/" + dev + " is invalid"
+	     << dendl;
+      } else {
+	json_map[devid] = smart_json;
+      }
+      ostringstream ss;
+      json_spirit::write(json_map, ss, json_spirit::pretty_print);
+      rdata.append(ss.str());
+      r = 0;
+      rs = "";
+    }
   }
 
  out:
@@ -3741,18 +3789,13 @@ void Monitor::handle_forward(MonOpRequestRef op)
      */
     req->rx_election_epoch = get_epoch();
 
-    /* Because this is a special fake connection, we need to break
-       the ref loop between Connection and MonSession differently
-       than we normally do. Here, the Message refers to the Connection
-       which refers to the Session, and nobody else refers to the Connection
-       or the Session. And due to the special nature of this message,
-       nobody refers to the Connection via the Session. So, clear out that
-       half of the ref loop.*/
-    s->con.reset(NULL);
-
     dout(10) << " mesg " << req << " from " << m->get_source_addr() << dendl;
-
     _ms_dispatch(req);
+
+    // break the session <-> con ref loop by removing the con->session
+    // reference, which is no longer needed once the MonOpRequest is
+    // set up.
+    c->set_priv(NULL);
   }
 }
 
@@ -3884,7 +3927,9 @@ void Monitor::resend_routed_requests()
       rr->op->mark_event("resend forwarded message to leader");
       dout(10) << " resend to mon." << mon << " tid " << rr->tid << " " << *req
 	       << dendl;
-      MForward *forward = new MForward(rr->tid, req, rr->con_features,
+      MForward *forward = new MForward(rr->tid,
+				       req,
+				       rr->con_features,
 				       rr->session->caps);
       req->put();  // forward takes its own ref; drop ours.
       forward->client_type = rr->con->get_peer_type();
@@ -4069,7 +4114,7 @@ void Monitor::_ms_dispatch(Message *m)
   dout(20) << " caps " << s->caps.get_str() << dendl;
 
   if ((is_synchronizing() ||
-       (s->global_id == 0 && !exited_quorum.is_zero())) &&
+       (!s->authenticated && !exited_quorum.is_zero())) &&
       !src_is_mon &&
       m->get_type() != CEPH_MSG_PING) {
     waitlist_or_zap_client(op);
@@ -5762,43 +5807,65 @@ bool Monitor::ms_get_authorizer(int service_id, AuthAuthorizer **authorizer,
   return true;
 }
 
-bool Monitor::ms_verify_authorizer(Connection *con, int peer_type,
-				   int protocol, bufferlist& authorizer_data,
-				   bufferlist& authorizer_reply,
-				   bool& isvalid, CryptoKey& session_key,
-				   std::unique_ptr<AuthAuthorizerChallenge> *challenge)
+KeyStore *Monitor::ms_get_auth1_authorizer_keystore()
 {
-  dout(10) << "ms_verify_authorizer " << con->get_peer_addr()
-	   << " " << ceph_entity_type_name(peer_type)
-	   << " protocol " << protocol << dendl;
+  return &keyring;
+}
 
-  if (is_shutdown())
-    return false;
-
-  if (peer_type == CEPH_ENTITY_TYPE_MON &&
-      auth_cluster_required.is_supported_auth(CEPH_AUTH_CEPHX)) {
-    // monitor, and cephx is enabled
-    isvalid = false;
-    if (protocol == CEPH_AUTH_CEPHX) {
-      auto iter = authorizer_data.cbegin();
-      CephXServiceTicketInfo auth_ticket_info;
-      
-      if (authorizer_data.length()) {
-	bool ret = cephx_verify_authorizer(g_ceph_context, &keyring, iter,
-					   auth_ticket_info, challenge, authorizer_reply);
-	if (ret) {
-	  session_key = auth_ticket_info.session_key;
-	  isvalid = true;
-	} else {
-	  dout(0) << "ms_verify_authorizer bad authorizer from mon " << con->get_peer_addr() << dendl;
-        }
-      }
-    } else {
-      dout(0) << "ms_verify_authorizer cephx enabled, but no authorizer (required for mon)" << dendl;
-    }
-  } else {
-    // who cares.
-    isvalid = true;
+int Monitor::ms_handle_authentication(Connection *con)
+{
+  if (con->get_peer_type() == CEPH_ENTITY_TYPE_MON) {
+    // mon <-> mon connections need no Session, and setting one up
+    // creates an awkward ref cycle between Session and Connection.
+    return 1;
   }
-  return true;
+
+  auto priv = con->get_priv();
+  MonSession *s = static_cast<MonSession*>(priv.get());
+  if (!s) {
+    // must be msgr2, otherwise dispatch would have set up the session.
+    s = session_map.new_session(
+      entity_name_t(con->get_peer_type(), -1),  // we don't know yet
+      con->get_peer_addrs(),
+      con);
+    assert(s);
+    dout(10) << __func__ << " adding session " << s << " to con " << con
+	     << dendl;
+    con->set_priv(s);
+    logger->set(l_mon_num_sessions, session_map.get_size());
+    logger->inc(l_mon_session_add);
+  }
+  dout(10) << __func__ << " session " << s << " con " << con
+	   << " addr " << s->con->get_peer_addr()
+	   << " " << *s << dendl;
+
+  AuthCapsInfo &caps_info = con->get_peer_caps_info();
+  if (caps_info.allow_all) {
+    s->caps.set_allow_all();
+    s->authenticated = true;
+  }
+  int ret = 1;
+  if (caps_info.caps.length()) {
+    bufferlist::const_iterator p = caps_info.caps.cbegin();
+    string str;
+    try {
+      decode(str, p);
+    } catch (const buffer::error &err) {
+      derr << __func__ << " corrupt cap data for " << con->get_peer_entity_name()
+	   << " in auth db" << dendl;
+      str.clear();
+      ret = -EPERM;
+    }
+    if (ret >= 0) {
+      if (s->caps.parse(str, NULL)) {
+	s->authenticated = true;
+      } else {
+	derr << __func__ << " unparseable caps '" << str << "' for "
+	     << con->get_peer_entity_name() << dendl;
+	ret = -EPERM;
+      }
+    }
+  }
+
+  return ret;
 }

@@ -133,6 +133,7 @@ using ceph::crypto::MD5;
 #define RGW_REST_SWIFT_AUTH     0x2
 #define RGW_REST_S3             0x4
 #define RGW_REST_WEBSITE     0x8
+#define RGW_REST_STS            0x10
 
 #define RGW_SUSPENDED_USER_AUID (uint64_t)-2
 
@@ -223,6 +224,10 @@ using ceph::crypto::MD5;
 
 #define ERR_BUSY_RESHARDING      2300
 #define ERR_NO_SUCH_ENTITY       2301
+
+// STS Errors
+#define ERR_PACKED_POLICY_TOO_LARGE 2400
+
 #ifndef UINT32_MAX
 #define UINT32_MAX (0xffffffffu)
 #endif
@@ -516,6 +521,9 @@ enum RGWOpType {
   RGW_OP_CONFIG_BUCKET_META_SEARCH,
   RGW_OP_GET_BUCKET_META_SEARCH,
   RGW_OP_DEL_BUCKET_META_SEARCH,
+  /* sts specific*/
+  RGW_STS_ASSUME_ROLE,
+  RGW_STS_GET_SESSION_TOKEN,
 };
 
 class RGWAccessControlPolicy;
@@ -646,6 +654,7 @@ struct RGWUserInfo
   RGWQuotaInfo user_quota;
   uint32_t type;
   set<string> mfa_ids;
+  string assumed_role_arn;
 
   RGWUserInfo()
     : suspended(0),
@@ -664,7 +673,7 @@ struct RGWUserInfo
   }
 
   void encode(bufferlist& bl) const {
-     ENCODE_START(20, 9, bl);
+     ENCODE_START(21, 9, bl);
      encode((uint64_t)0, bl); // old auid
      string access_key;
      string secret_key;
@@ -706,6 +715,7 @@ struct RGWUserInfo
      encode(admin, bl);
      encode(type, bl);
      encode(mfa_ids, bl);
+     encode(assumed_role_arn, bl);
      ENCODE_FINISH(bl);
   }
   void decode(bufferlist::const_iterator& bl) {
@@ -786,6 +796,9 @@ struct RGWUserInfo
     }
     if (struct_v >= 20) {
       decode(mfa_ids, bl);
+    }
+    if (struct_v >= 21) {
+      decode(assumed_role_arn, bl);
     }
     DECODE_FINISH(bl);
   }
@@ -1362,9 +1375,9 @@ struct RGWBucketInfo {
   void decode_json(JSONObj *obj);
 
   bool versioned() const { return (flags & BUCKET_VERSIONED) != 0; }
-  int versioning_status() { return flags & (BUCKET_VERSIONED | BUCKET_VERSIONS_SUSPENDED | BUCKET_MFA_ENABLED); }
-  bool versioning_enabled() { return (versioning_status() & (BUCKET_VERSIONED | BUCKET_VERSIONS_SUSPENDED)) == BUCKET_VERSIONED; }
-  bool mfa_enabled() { return (versioning_status() & BUCKET_MFA_ENABLED) != 0; }
+  int versioning_status() const { return flags & (BUCKET_VERSIONED | BUCKET_VERSIONS_SUSPENDED | BUCKET_MFA_ENABLED); }
+  bool versioning_enabled() const { return (versioning_status() & (BUCKET_VERSIONED | BUCKET_VERSIONS_SUSPENDED)) == BUCKET_VERSIONED; }
+  bool mfa_enabled() const { return (versioning_status() & BUCKET_MFA_ENABLED) != 0; }
   bool datasync_flag_enabled() const { return (flags & BUCKET_DATASYNC_DISABLED) == 0; }
 
   bool has_swift_versioning() const {
@@ -1857,6 +1870,7 @@ struct req_state : DoutPrefixProvider {
       std::string x_amz_algorithm;
       std::string x_amz_credential;
       std::string x_amz_date;
+      std::string x_amz_security_token;
       ceph::bufferlist encoded_policy;
     } s3_postobj_creds;
   } auth;
@@ -2280,20 +2294,25 @@ rgw::IAM::Effect eval_user_policies(const vector<rgw::IAM::Policy>& user_policie
                           boost::optional<const rgw::auth::Identity&> id,
                           const uint64_t op,
                           const rgw::IAM::ARN& arn);
-bool verify_user_permission(struct req_state * const s,
+bool verify_user_permission(const DoutPrefixProvider* dpp,
+                            struct req_state * const s,
                             RGWAccessControlPolicy * const user_acl,
                             const vector<rgw::IAM::Policy>& user_policies,
                             const rgw::IAM::ARN& res,
                             const uint64_t op);
-bool verify_user_permission_no_policy(struct req_state * const s,
+bool verify_user_permission_no_policy(const DoutPrefixProvider* dpp,
+                                      struct req_state * const s,
                                       RGWAccessControlPolicy * const user_acl,
                                       const int perm);
-bool verify_user_permission(struct req_state * const s,
+bool verify_user_permission(const DoutPrefixProvider* dpp,
+                            struct req_state * const s,
                             const rgw::IAM::ARN& res,
                             const uint64_t op);
-bool verify_user_permission_no_policy(struct req_state * const s,
+bool verify_user_permission_no_policy(const DoutPrefixProvider* dpp,
+                                      struct req_state * const s,
                                       int perm);
 bool verify_bucket_permission(
+  const DoutPrefixProvider* dpp,
   struct req_state * const s,
   const rgw_bucket& bucket,
   RGWAccessControlPolicy * const user_acl,
@@ -2301,17 +2320,20 @@ bool verify_bucket_permission(
   const boost::optional<rgw::IAM::Policy>& bucket_policy,
   const vector<rgw::IAM::Policy>& user_policies,
   const uint64_t op);
-bool verify_bucket_permission(struct req_state * const s, const uint64_t op);
+bool verify_bucket_permission(const DoutPrefixProvider* dpp, struct req_state * const s, const uint64_t op);
 bool verify_bucket_permission_no_policy(
+  const DoutPrefixProvider* dpp,
   struct req_state * const s,
   RGWAccessControlPolicy * const user_acl,
   RGWAccessControlPolicy * const bucket_acl,
   const int perm);
-bool verify_bucket_permission_no_policy(struct req_state * const s,
+bool verify_bucket_permission_no_policy(const DoutPrefixProvider* dpp,
+                                        struct req_state * const s,
 					const int perm);
 int verify_bucket_owner_or_policy(struct req_state* const s,
 				  const uint64_t op);
 extern bool verify_object_permission(
+  const DoutPrefixProvider* dpp,
   struct req_state * const s,
   const rgw_obj& obj,
   RGWAccessControlPolicy * const user_acl,
@@ -2320,14 +2342,15 @@ extern bool verify_object_permission(
   const boost::optional<rgw::IAM::Policy>& bucket_policy,
   const vector<rgw::IAM::Policy>& user_policies,
   const uint64_t op);
-extern bool verify_object_permission(struct req_state *s, uint64_t op);
+extern bool verify_object_permission(const DoutPrefixProvider* dpp, struct req_state *s, uint64_t op);
 extern bool verify_object_permission_no_policy(
+  const DoutPrefixProvider* dpp,
   struct req_state * const s,
   RGWAccessControlPolicy * const user_acl,
   RGWAccessControlPolicy * const bucket_acl,
   RGWAccessControlPolicy * const object_acl,
   int perm);
-extern bool verify_object_permission_no_policy(struct req_state *s,
+extern bool verify_object_permission_no_policy(const DoutPrefixProvider* dpp, struct req_state *s,
 					       int perm);
 /** Convert an input URL into a sane object name
  * by converting %-escaped strings into characters, etc*/

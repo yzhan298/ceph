@@ -200,7 +200,7 @@ void TrimRequest<I>::send_pre_trim() {
       RWLock::WLocker object_map_locker(image_ctx.object_map_lock);
       if (image_ctx.object_map->template aio_update<AsyncRequest<I> >(
             CEPH_NOSNAP, m_delete_start_min, m_num_objects, OBJECT_PENDING,
-            OBJECT_EXISTS, {}, this)) {
+            OBJECT_EXISTS, {}, false, this)) {
         return;
       }
     }
@@ -253,7 +253,8 @@ void TrimRequest<I>::send_copyup_objects() {
   AsyncObjectThrottle<I> *throttle = new AsyncObjectThrottle<I>(
     this, image_ctx, context_factory, ctx, &m_prog_ctx, copyup_start,
     copyup_end);
-  throttle->start_ops(image_ctx.concurrent_management_ops);
+  throttle->start_ops(
+    image_ctx.config.template get_val<uint64_t>("rbd_concurrent_management_ops"));
 }
 
 template <typename I>
@@ -273,7 +274,8 @@ void TrimRequest<I>::send_remove_objects() {
   AsyncObjectThrottle<I> *throttle = new AsyncObjectThrottle<I>(
     this, image_ctx, context_factory, ctx, &m_prog_ctx, m_delete_start,
     m_num_objects);
-  throttle->start_ops(image_ctx.concurrent_management_ops);
+  throttle->start_ops(
+    image_ctx.config.template get_val<uint64_t>("rbd_concurrent_management_ops"));
 }
 
 template<typename I>
@@ -294,7 +296,7 @@ void TrimRequest<I>::send_post_trim() {
       RWLock::WLocker object_map_locker(image_ctx.object_map_lock);
       if (image_ctx.object_map->template aio_update<AsyncRequest<I> >(
             CEPH_NOSNAP, m_delete_start_min, m_num_objects, OBJECT_NONEXISTENT,
-            OBJECT_PENDING, {}, this)) {
+            OBJECT_PENDING, {}, false, this)) {
         return;
       }
     }

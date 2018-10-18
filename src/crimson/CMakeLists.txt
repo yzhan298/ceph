@@ -12,10 +12,8 @@ set(crimson_common_srcs
 #  - the logging is sent to Seastar backend
 #  - and the template parameter of lock_policy is SINGLE
 add_library(crimson-common STATIC
-  ${PROJECT_SOURCE_DIR}/src/common/addr_parsing.c
   ${PROJECT_SOURCE_DIR}/src/common/admin_socket.cc
   ${PROJECT_SOURCE_DIR}/src/common/admin_socket_client.cc
-  ${PROJECT_SOURCE_DIR}/src/common/armor.c
   ${PROJECT_SOURCE_DIR}/src/common/bit_str.cc
   ${PROJECT_SOURCE_DIR}/src/common/bloom_filter.cc
   ${PROJECT_SOURCE_DIR}/src/common/ceph_argparse.cc
@@ -50,7 +48,6 @@ add_library(crimson-common STATIC
   ${PROJECT_SOURCE_DIR}/src/common/perf_histogram.cc
   ${PROJECT_SOURCE_DIR}/src/common/page.cc
   ${PROJECT_SOURCE_DIR}/src/common/snap_types.cc
-  ${PROJECT_SOURCE_DIR}/src/common/safe_io.c
   ${PROJECT_SOURCE_DIR}/src/common/signal.cc
   ${PROJECT_SOURCE_DIR}/src/common/str_list.cc
   ${PROJECT_SOURCE_DIR}/src/common/str_map.cc
@@ -91,6 +88,7 @@ add_library(crimson-common STATIC
   ${crimson_common_srcs}
   $<TARGET_OBJECTS:crimson-auth>
   $<TARGET_OBJECTS:common_buffer_obj>
+  $<TARGET_OBJECTS:common_mountcephfs_objs>
   $<TARGET_OBJECTS:crimson-crush>
   $<TARGET_OBJECTS:global_common_objs>)
 
@@ -106,24 +104,32 @@ target_link_libraries(crimson-common
     crimson::cflags
     Boost::iostreams
     Boost::random
-    ${NSS_LIBRARIES} ${NSPR_LIBRARIES} ${OPENSSL_LIBRARIES})
+    ${NSS_LIBRARIES} ${NSPR_LIBRARIES} OpenSSL::Crypto)
 
+set(crimson_auth_srcs
+  auth/KeyRing.cc)
+set(crimson_mon_srcs
+  mon/MonClient.cc
+  ${PROJECT_SOURCE_DIR}/src/mon/MonMap.cc
+  ${PROJECT_SOURCE_DIR}/src/mon/MonSub.cc)
 set(crimson_net_srcs
   net/Dispatcher.cc
   net/Errors.cc
   net/SocketConnection.cc
-  net/SocketMessenger.cc)
+  net/SocketMessenger.cc
+  net/Socket.cc)
 set(crimson_thread_srcs
   thread/ThreadPool.cc
   thread/Throttle.cc)
 add_library(crimson STATIC
+  ${crimson_auth_srcs}
+  ${crimson_mon_srcs}
   ${crimson_net_srcs}
   ${crimson_thread_srcs}
   ${CMAKE_SOURCE_DIR}/src/common/buffer_seastar.cc)
-target_compile_options(crimson PRIVATE
+target_compile_options(crimson PUBLIC
   "-ftemplate-backtrace-limit=0")
 target_link_libraries(crimson
   PUBLIC
-    crimson-common Seastar::seastar
-  PRIVATE
+    crimson-common
     crimson::cflags)

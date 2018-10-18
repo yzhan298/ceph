@@ -49,6 +49,8 @@ class TaskMessage {
   providedIn: ServicesModule
 })
 export class TaskMessageService {
+  constructor() {}
+
   defaultMessage = new TaskMessage(
     new TaskMessageOperation('Executing', 'execute', 'Executed'),
     (metadata) => {
@@ -74,6 +76,13 @@ export class TaskMessageService {
   };
 
   messages = {
+    'pool/create': new TaskMessage(this.commonOperations.create, this.pool, (metadata) => ({
+      '17': `Name is already used by ${this.pool(metadata)}.`
+    })),
+    'pool/edit': new TaskMessage(this.commonOperations.update, this.pool, (metadata) => ({
+      '17': `Name is already used by ${this.pool(metadata)}.`
+    })),
+    'pool/delete': new TaskMessage(this.commonOperations.delete, this.pool),
     'rbd/create': new TaskMessage(this.commonOperations.create, this.rbd.default, (metadata) => ({
       '17': `Name is already used by ${this.rbd.default(metadata)}.`
     })),
@@ -126,10 +135,42 @@ export class TaskMessageService {
     'rbd/snap/rollback': new TaskMessage(
       new TaskMessageOperation('Rolling back', 'rollback', 'Rolled back'),
       this.rbd.snapshot
+    ),
+    'rbd/trash/move': new TaskMessage(
+      new TaskMessageOperation('Moving', 'move', 'Moved'),
+      (metadata) => `image '${metadata.pool_name}/${metadata.image_name}' to trash`,
+      () => ({
+        2: `Could not find image.`
+      })
+    ),
+    'rbd/trash/restore': new TaskMessage(
+      new TaskMessageOperation('Restoring', 'restore', 'Restored'),
+      (metadata) =>
+        `image '${metadata.pool_name}/${metadata.image_name}@${metadata.image_id}' \
+        into '${metadata.pool_name}/${metadata.new_image_name}'`,
+      (metadata) => ({
+        17: `Image name '${metadata.pool_name}/${metadata.new_image_name}' is already in use.`
+      })
+    ),
+    'rbd/trash/remove': new TaskMessage(
+      new TaskMessageOperation('Deleting', 'delete', 'Deleted'),
+      (metadata) => `image '${metadata.pool_name}/${metadata.image_name}@${metadata.image_id}'`
+    ),
+    'rbd/trash/purge': new TaskMessage(
+      new TaskMessageOperation('Purging', 'purge', 'Purged'),
+      (metadata) => {
+        let message = 'all pools';
+        if (metadata.pool_name) {
+          message = `'${metadata.pool_name}'`;
+        }
+        return `images from ${message}`;
+      }
     )
   };
 
-  constructor() {}
+  pool(metadata) {
+    return `pool '${metadata.pool_name}'`;
+  }
 
   _getTaskTitle(task: Task) {
     return this.messages[task.name] || this.defaultMessage;

@@ -57,9 +57,9 @@ function ensure_decent_gcc_on_ubuntu {
 
     if [ ! -f /usr/bin/g++-${new} ]; then
 	$SUDO tee /etc/apt/sources.list.d/ubuntu-toolchain-r.list <<EOF
-deb http://ppa.launchpad.net/ubuntu-toolchain-r/test/ubuntu $codename main
-deb [arch=amd64] http://mirror.cs.uchicago.edu/ubuntu-toolchain-r $codename main
-deb [arch=amd64,i386] http://mirror.yandex.ru/mirrors/launchpad/ubuntu-toolchain-r $codename main
+deb [lang=none] http://ppa.launchpad.net/ubuntu-toolchain-r/test/ubuntu $codename main
+deb [arch=amd64 lang=none] http://mirror.cs.uchicago.edu/ubuntu-toolchain-r $codename main
+deb [arch=amd64,i386 lang=none] http://mirror.yandex.ru/mirrors/launchpad/ubuntu-toolchain-r $codename main
 EOF
 	# import PPA's signing key into APT's keyring
 	cat << ENDOFKEY | $SUDO apt-key add -
@@ -77,7 +77,7 @@ msyaQpNl/m/lNtOLhR64v5ZybofB2EWkMxUzX8D/FQ==
 =LcUQ
 -----END PGP PUBLIC KEY BLOCK-----
 ENDOFKEY
-	$SUDO env DEBIAN_FRONTEND=noninteractive apt-get update -y -o Acquire::Languages=none -o Acquire::Translation=none || true
+	$SUDO env DEBIAN_FRONTEND=noninteractive apt-get update -y || true
 	$SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y g++-7
     fi
 
@@ -429,3 +429,4 @@ for interpreter in python2.7 python3 ; do
     rm -rf $top_srcdir/install-deps-$interpreter
 done
 rm -rf $XDG_CACHE_HOME
+git --version || (echo "Dashboard uses git to pull dependencies." ; false)

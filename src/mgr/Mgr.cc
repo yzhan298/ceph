@@ -24,7 +24,6 @@
 #include "mgr/MgrContext.h"
 
 #include "DaemonServer.h"
-#include "messages/MMgrBeacon.h"
 #include "messages/MMgrDigest.h"
 #include "messages/MCommand.h"
 #include "messages/MCommandReply.h"
@@ -286,7 +285,8 @@ void Mgr::init()
   // assume finisher already initialized in background_init
   dout(4) << "starting python modules..." << dendl;
   py_module_registry->active_start(daemon_state, cluster_state,
-      kv_store, *monc, clog, *objecter, *client, finisher, server);
+      kv_store, *monc, clog, audit_clog, *objecter, *client,
+      finisher, server);
 
   dout(4) << "Complete." << dendl;
   initializing = false;
@@ -351,9 +351,11 @@ void Mgr::load_all_metadata()
     daemon_meta.erase("name");
     daemon_meta.erase("hostname");
 
+    map<string,string> m;
     for (const auto &i : daemon_meta) {
-      dm->metadata[i.first] = i.second.get_str();
+      m[i.first] = i.second.get_str();
     }
+    dm->set_metadata(m);
 
     daemon_state.insert(dm);
   }

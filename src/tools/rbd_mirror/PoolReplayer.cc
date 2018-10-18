@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
+
 // vim: ts=8 sw=2 smarttab
 
 #include "PoolReplayer.h"
@@ -16,6 +16,7 @@
 #include "librbd/internal.h"
 #include "librbd/Utils.h"
 #include "librbd/Watcher.h"
+#include "librbd/api/Config.h"
 #include "librbd/api/Mirror.h"
 #include "ImageMap.h"
 #include "InstanceReplayer.h"
@@ -304,6 +305,9 @@ void PoolReplayer<I>::init()
          << cpp_strerror(r) << dendl;
     return;
   }
+
+  auto cct = reinterpret_cast<CephContext *>(m_local_io_ctx.cct());
+  librbd::api::Config<I>::apply_pool_overrides(m_local_io_ctx, &cct->_conf);
 
   std::string local_mirror_uuid;
   r = librbd::cls_client::mirror_uuid_get(&m_local_io_ctx,

@@ -1253,7 +1253,7 @@ std::vector<Option> get_global_options() {
     /* -- mon: osdmap prune (end) -- */
 
     Option("mon_osd_cache_size", Option::TYPE_INT, Option::LEVEL_ADVANCED)
-    .set_default(10)
+    .set_default(500)
     .set_description(""),
 
     Option("mon_cpu_threads", Option::TYPE_INT, Option::LEVEL_ADVANCED)
@@ -1655,8 +1655,9 @@ std::vector<Option> get_global_options() {
     .set_description(""),
 
     Option("mon_config_key_max_entry_size", Option::TYPE_SIZE, Option::LEVEL_ADVANCED)
-    .set_default(4_K)
-    .set_description(""),
+    .set_default(64_K)
+    .set_description("Defines the number of bytes allowed to be held in a "
+		     "single config-key entry"),
 
     Option("mon_sync_timeout", Option::TYPE_FLOAT, Option::LEVEL_ADVANCED)
     .set_default(60.0)
@@ -1801,6 +1802,11 @@ std::vector<Option> get_global_options() {
     Option("mon_osd_crush_smoke_test", Option::TYPE_BOOL, Option::LEVEL_ADVANCED)
     .set_default(true)
     .set_description(""),
+
+    Option("mon_smart_report_timeout", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
+    .set_default(5)
+    .set_description("Timeout (in seconds) for smarctl to run, default is set to 5"),
+
 
     Option("paxos_stash_full_interval", Option::TYPE_INT, Option::LEVEL_ADVANCED)
     .set_default(25)
@@ -2018,7 +2024,7 @@ std::vector<Option> get_global_options() {
     .set_min(2)
     .set_description("Number of striping periods to zero head of MDS journal write position"),
 
-     Option("osd_smart_report_timeout", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
+    Option("osd_smart_report_timeout", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
     .set_default(5)
     .set_description("Timeout (in seconds) for smarctl to run, default is set to 5"),
 
@@ -3484,7 +3490,7 @@ std::vector<Option> get_global_options() {
     .set_description(""),
 
     Option("rocksdb_cache_size", Option::TYPE_SIZE, Option::LEVEL_ADVANCED)
-    .set_default(128_M)
+    .set_default(512_M)
     .set_description(""),
 
     Option("rocksdb_cache_row_ratio", Option::TYPE_FLOAT, Option::LEVEL_ADVANCED)
@@ -4846,7 +4852,7 @@ std::vector<Option> get_global_options() {
     .set_description("Filesystem path to manager modules."),
 
     Option("mgr_initial_modules", Option::TYPE_STR, Option::LEVEL_BASIC)
-    .set_default("restful status balancer iostat crash")
+    .set_default("restful iostat")
     .set_flag(Option::FLAG_NO_MON_UPDATE)
     .set_flag(Option::FLAG_CLUSTER_CREATE)
     .add_service("mon")
@@ -5102,7 +5108,7 @@ std::vector<Option> get_rgw_options() {
         "will be located in the path that is specified here. "),
 
     Option("rgw_enable_apis", Option::TYPE_STR, Option::LEVEL_ADVANCED)
-    .set_default("s3, s3website, swift, swift_auth, admin")
+    .set_default("s3, s3website, swift, swift_auth, admin, sts")
     .set_description("A list of set of RESTful APIs that rgw handles."),
 
     Option("rgw_cache_enabled", Option::TYPE_BOOL, Option::LEVEL_ADVANCED)
@@ -5372,7 +5378,7 @@ std::vector<Option> get_rgw_options() {
     .set_description("Should S3 authentication use Keystone."),
 
     Option("rgw_s3_auth_order", Option::TYPE_STR, Option::LEVEL_ADVANCED)
-     .set_default("external, local")
+     .set_default("sts, external, local")
      .set_description("Authentication strategy order to use for s3 authentication")
      .set_long_description(
 	  "Order of authentication strategies to try for s3 authentication, the allowed "
@@ -6348,6 +6354,24 @@ std::vector<Option> get_rgw_options() {
 			  "increasing this value may cause some operations to "
 			  "take longer in exceptional cases and thus may, "
 			  "rarely, cause clients to time out."),
+    Option("rgw_sts_entry", Option::TYPE_STR, Option::LEVEL_ADVANCED)
+    .set_default("sts")
+    .set_description("STS URL prefix")
+    .set_long_description("URL path prefix for internal STS requests."),
+
+    Option("rgw_sts_key", Option::TYPE_STR, Option::LEVEL_ADVANCED)
+    .set_default("sts")
+    .set_description("STS Key")
+    .set_long_description("Key used for encrypting/ decrypting session token."),
+
+    Option("rgw_s3_auth_use_sts", Option::TYPE_BOOL, Option::LEVEL_ADVANCED)
+    .set_default(false)
+    .set_description("Should S3 authentication use STS."),
+
+    Option("rgw_sts_max_session_duration", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
+    .set_default(43200)
+    .set_description("Session token max duration")
+    .set_long_description("Max duration in seconds for which the session token is valid."),
   });
 }
 
@@ -6401,11 +6425,11 @@ static std::vector<Option> get_rbd_options() {
 	return 0;
       }),
 
-    Option("rbd_op_threads", Option::TYPE_INT, Option::LEVEL_ADVANCED)
+    Option("rbd_op_threads", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
     .set_default(1)
     .set_description("number of threads to utilize for internal processing"),
 
-    Option("rbd_op_thread_timeout", Option::TYPE_INT, Option::LEVEL_ADVANCED)
+    Option("rbd_op_thread_timeout", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
     .set_default(60)
     .set_description("time in seconds for detecting a hung thread"),
 
@@ -6439,7 +6463,7 @@ static std::vector<Option> get_rbd_options() {
     .set_default(1.0)
     .set_description("seconds in cache before writeback starts"),
 
-    Option("rbd_cache_max_dirty_object", Option::TYPE_INT, Option::LEVEL_ADVANCED)
+    Option("rbd_cache_max_dirty_object", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
     .set_default(0)
     .set_description("dirty limit for objects - set to 0 for auto calculate from rbd_cache_size"),
 
@@ -6447,7 +6471,7 @@ static std::vector<Option> get_rbd_options() {
     .set_default(false)
     .set_description("whether to block writes to the cache before the aio_write call completes"),
 
-    Option("rbd_concurrent_management_ops", Option::TYPE_INT, Option::LEVEL_ADVANCED)
+    Option("rbd_concurrent_management_ops", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
     .set_default(10)
     .set_min(1)
     .set_description("how many operations can be in flight for a management operation like deleting or resizing an image"),
@@ -6480,7 +6504,7 @@ static std::vector<Option> get_rbd_options() {
                           "object size will disable sparse-read for all "
                           "requests"),
 
-    Option("rbd_readahead_trigger_requests", Option::TYPE_INT, Option::LEVEL_ADVANCED)
+    Option("rbd_readahead_trigger_requests", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
     .set_default(10)
     .set_description("number of sequential requests necessary to trigger readahead"),
 
@@ -6500,11 +6524,11 @@ static std::vector<Option> get_rbd_options() {
     .set_default(true)
     .set_description("whether to blacklist clients whose lock was broken"),
 
-    Option("rbd_blacklist_expire_seconds", Option::TYPE_INT, Option::LEVEL_ADVANCED)
+    Option("rbd_blacklist_expire_seconds", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
     .set_default(0)
     .set_description("number of seconds to blacklist - set to 0 for OSD default"),
 
-    Option("rbd_request_timed_out_seconds", Option::TYPE_INT, Option::LEVEL_ADVANCED)
+    Option("rbd_request_timed_out_seconds", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
     .set_default(30)
     .set_description("number of seconds before maintenance request times out"),
 
@@ -6536,6 +6560,14 @@ static std::vector<Option> get_rbd_options() {
     .set_default(true)
     .set_description("automatically acquire/release exclusive lock until it is explicitly requested"),
 
+    Option("rbd_move_to_trash_on_remove", Option::TYPE_BOOL, Option::LEVEL_BASIC)
+    .set_default(false)
+    .set_description("automatically move images to the trash when deleted"),
+
+    Option("rbd_move_to_trash_on_remove_expire_seconds", Option::TYPE_UINT, Option::LEVEL_BASIC)
+    .set_default(0)
+    .set_description("default number of seconds to protect deleted images in the trash"),
+
     Option("rbd_mirroring_resync_after_disconnect", Option::TYPE_BOOL, Option::LEVEL_ADVANCED)
     .set_default(false)
     .set_description("automatically start image resync after mirroring is disconnected due to being laggy"),
@@ -6544,15 +6576,15 @@ static std::vector<Option> get_rbd_options() {
     .set_default(0)
     .set_description("time-delay in seconds for rbd-mirror delete propagation"),
 
-    Option("rbd_mirroring_replay_delay", Option::TYPE_INT, Option::LEVEL_ADVANCED)
+    Option("rbd_mirroring_replay_delay", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
     .set_default(0)
     .set_description("time-delay in seconds for rbd-mirror asynchronous replication"),
 
-    Option("rbd_default_format", Option::TYPE_INT, Option::LEVEL_ADVANCED)
+    Option("rbd_default_format", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
     .set_default(2)
     .set_description("default image format for new images"),
 
-    Option("rbd_default_order", Option::TYPE_INT, Option::LEVEL_ADVANCED)
+    Option("rbd_default_order", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
     .set_default(22)
     .set_description("default order (data block object size) for new images"),
 
@@ -6597,7 +6629,7 @@ static std::vector<Option> get_rbd_options() {
     .set_default(5)
     .set_description("commit time interval, seconds"),
 
-    Option("rbd_journal_object_flush_interval", Option::TYPE_INT, Option::LEVEL_ADVANCED)
+    Option("rbd_journal_object_flush_interval", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
     .set_default(0)
     .set_description("maximum number of pending commits per journal object"),
 
@@ -6621,7 +6653,7 @@ static std::vector<Option> get_rbd_options() {
     .set_default(16384)
     .set_description("maximum journal payload size before splitting"),
 
-    Option("rbd_journal_max_concurrent_object_sets", Option::TYPE_INT, Option::LEVEL_ADVANCED)
+    Option("rbd_journal_max_concurrent_object_sets", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
     .set_default(0)
     .set_description("maximum number of object sets a journal client can be behind before it is automatically unregistered"),
 
@@ -6687,7 +6719,7 @@ static std::vector<Option> get_rbd_mirror_options() {
     .set_default(5)
     .set_description("maximum number of image syncs in parallel"),
 
-    Option("rbd_mirror_pool_replayers_refresh_interval", Option::TYPE_INT, Option::LEVEL_ADVANCED)
+    Option("rbd_mirror_pool_replayers_refresh_interval", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
     .set_default(30)
     .set_description("interval to refresh peers in rbd-mirror daemon"),
 
@@ -6700,21 +6732,21 @@ static std::vector<Option> get_rbd_mirror_options() {
     .set_default(30)
     .set_description("interval to check and retry the failed deletion requests"),
 
-    Option("rbd_mirror_image_state_check_interval", Option::TYPE_INT, Option::LEVEL_ADVANCED)
+    Option("rbd_mirror_image_state_check_interval", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
     .set_default(30)
     .set_min(1)
     .set_description("interval to get images from pool watcher and set sources in replayer"),
 
-    Option("rbd_mirror_leader_heartbeat_interval", Option::TYPE_INT, Option::LEVEL_ADVANCED)
+    Option("rbd_mirror_leader_heartbeat_interval", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
     .set_default(5)
     .set_min(1)
     .set_description("interval (in seconds) between mirror leader heartbeats"),
 
-    Option("rbd_mirror_leader_max_missed_heartbeats", Option::TYPE_INT, Option::LEVEL_ADVANCED)
+    Option("rbd_mirror_leader_max_missed_heartbeats", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
     .set_default(2)
     .set_description("number of missed heartbeats for non-lock owner to attempt to acquire lock"),
 
-    Option("rbd_mirror_leader_max_acquire_attempts_before_break", Option::TYPE_INT, Option::LEVEL_ADVANCED)
+    Option("rbd_mirror_leader_max_acquire_attempts_before_break", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
     .set_default(3)
     .set_description("number of failed attempts to acquire lock after missing heartbeats before breaking lock"),
 
@@ -6723,7 +6755,7 @@ static std::vector<Option> get_rbd_mirror_options() {
     .set_enum_allowed({"none", "simple"})
     .set_description("active/active policy type for mapping images to instances"),
 
-    Option("rbd_mirror_image_policy_migration_throttle", Option::TYPE_INT, Option::LEVEL_ADVANCED)
+    Option("rbd_mirror_image_policy_migration_throttle", Option::TYPE_UINT, Option::LEVEL_ADVANCED)
     .set_default(300)
     .set_description("number of seconds after which an image can be reshuffled (migrated) again"),
 

@@ -10,12 +10,8 @@ rbd ls | wc -l | grep -v '^0$' && echo "nonempty rbd pool, aborting!  run this s
 
 IMGS="testimg1 testimg2 testimg3 testimg4 testimg5 testimg6 testimg-diff1 testimg-diff2 testimg-diff3 foo foo2 bar bar2 test1 test2 test3 test4 clone2"
 
-expect_fail()
-{
-  set -x
-  set +e
-  "$@"
-  if [ $? == 0 ]; then return 1; else return 0; fi
+expect_fail() {
+    "$@" && return 1 || return 0
 }
 
 tiered=0
@@ -281,7 +277,7 @@ test_locking() {
     echo "testing locking..."
     remove_images
 
-    rbd create -s 1 test1
+    rbd create $RBD_CREATE_ARGS -s 1 test1
     rbd lock list test1 | wc -l | grep '^0$'
     rbd lock add test1 id
     rbd lock list test1 | grep ' 1 '
@@ -472,6 +468,13 @@ test_trash() {
     rbd snap purge --image-id $ID
     rbd snap ls --image-id $ID | grep -v 'SNAPID' | wc -l | grep 0
 
+    rbd rm --rbd_move_to_trash_on_remove=true --rbd_move_to_trash_on_remove_expire_seconds=3600 test1
+    rbd trash ls | grep test1
+    rbd trash ls | wc -l | grep 1
+    rbd trash ls -l | grep 'test1.*USER.*protected until'
+    rbd trash rm $ID 2>&1 | grep 'Deferment time has not expired'
+    rbd trash rm --image-id $ID --force
+
     remove_images
 }
 
@@ -637,28 +640,28 @@ test_namespace() {
 
     expect_fail rbd namespace remove --pool rbd missing
 
-    rbd create rbd/test1/image1 --size 1G
+    rbd create $RBD_CREATE_ARGS --size 1G rbd/test1/image1
 
     # default test1 ns to test2 ns clone
     rbd bench --io-type write --io-pattern rand --io-total 32M --io-size 4K rbd/test1/image1
     rbd snap create rbd/test1/image1@1
     rbd clone --rbd-default-clone-format 2 rbd/test1/image1@1 rbd/test2/image1
     rbd snap rm rbd/test1/image1@1
-    cmp <(rbd export rbd/test1/image1@1 -) <(rbd export rbd/test2/image1 -)
+    cmp <(rbd export rbd/test1/image1 -) <(rbd export rbd/test2/image1 -)
     rbd rm rbd/test2/image1
 
     # default ns to test1 ns clone
-    rbd create rbd/image2 --size 1G
+    rbd create $RBD_CREATE_ARGS --size 1G rbd/image2
     rbd bench --io-type write --io-pattern rand --io-total 32M --io-size 4K rbd/image2
     rbd snap create rbd/image2@1
     rbd clone --rbd-default-clone-format 2 rbd/image2@1 rbd/test2/image2
     rbd snap rm rbd/image2@1
-    cmp <(rbd export rbd/image2@1 -) <(rbd export rbd/test2/image2 -)
+    cmp <(rbd export rbd/image2 -) <(rbd export rbd/test2/image2 -)
     expect_fail rbd rm rbd/image2
     rbd rm rbd/test2/image2
     rbd rm rbd/image2
 
-    rbd create --namespace test1 image2 --size 1G
+    rbd create $RBD_CREATE_ARGS --size 1G --namespace test1 image2
     expect_fail rbd namespace remove --pool rbd test1
 
     rbd group create rbd/test1/group1
@@ -775,6 +778,27 @@ test_migration() {
 test_config() {
     echo "testing config..."
     remove_images
+
+    expect_fail rbd config global set osd rbd_cache true
+    expect_fail rbd config global set global debug_ms 10
+    expect_fail rbd config global set global rbd_UNKNOWN false
+    expect_fail rbd config global set global rbd_cache INVALID
+    rbd config global set global rbd_cache false
+    rbd config global set client rbd_cache true
+    rbd config global set client.123 rbd_cache false
+    rbd config global get global rbd_cache | grep '^false$'
+    rbd config global get client rbd_cache | grep '^true$'
+    rbd config global get client.123 rbd_cache | grep '^false$'
+    expect_fail rbd config global get client.UNKNOWN rbd_cache
+    rbd config global list global | grep '^rbd_cache * false * global *$'
+    rbd config global list client | grep '^rbd_cache * true * client *$'
+    rbd config global list client.123 | grep '^rbd_cache * false * client.123 *$'
+    rbd config global list client.UNKNOWN | grep '^rbd_cache * true * client *$'
+    rbd config global rm client rbd_cache
+    expect_fail rbd config global get client rbd_cache
+    rbd config global list client | grep '^rbd_cache * false * global *$'
+    rbd config global rm client.123 rbd_cache
+    rbd config global rm global rbd_cache
 
     rbd config pool set rbd rbd_cache true
     rbd config pool list rbd | grep '^rbd_cache * true * pool *$'

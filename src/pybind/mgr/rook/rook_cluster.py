@@ -7,7 +7,7 @@ call methods.
 This module is runnable outside of ceph-mgr, useful for testing.
 """
 
-import urlparse
+from six.moves.urllib.parse import urljoin  # pylint: disable=import-error
 import logging
 import json
 
@@ -74,7 +74,7 @@ class RookCluster(object):
     def rook_url(self, path):
         prefix = "/apis/ceph.rook.io/%s/namespaces/%s/" % (
             ROOK_API_VERSION, self.rook_namespace)
-        return urlparse.urljoin(prefix, path)
+        return urljoin(prefix, path)
 
     def rook_api_call(self, verb, path, **kwargs):
         full_path = self.rook_url(path)
@@ -115,7 +115,7 @@ class RookCluster(object):
                 ROOK_SYSTEM_NS,
                 label_selector=label_selector)
         except ApiException as e:
-            log.warn("Failed to fetch device metadata: {0}".format(e))
+            log.warning("Failed to fetch device metadata: {0}".format(e))
             raise
 
         nodename_to_devices = {}
@@ -356,7 +356,7 @@ class RookCluster(object):
                 "clusters/{0}".format(self.cluster_name),
                 body=patch)
         except ApiException as e:
-            log.exception("API exception: {0}".format(e.message))
+            log.exception("API exception: {0}".format(e))
             raise ApplyException(
                 "Failed to create OSD entries in Cluster CRD: {0}".format(
-                    e.message))
+                    e))

@@ -3,13 +3,17 @@
   Failed to load data.
 </cd-error-panel>
 <div class="dataTables_wrapper">
-  <div class="dataTables_header clearfix"
+  <div class="dataTables_header clearfix form-inline"
        *ngIf="toolHeader">
     <!-- actions -->
     <div class="oadatatableactions">
       <ng-content select=".table-actions"></ng-content>
     </div>
     <!-- end actions -->
+
+    <!-- filters -->
+    <ng-content select=".table-filters"></ng-content>
+    <!-- end filters -->
 
     <!-- search -->
     <div class="input-group">
@@ -19,7 +23,7 @@
       <input class="form-control"
              type="text"
              [(ngModel)]="search"
-             (keyup)='updateFilter($event)'>
+             (keyup)="updateFilter($event)">
       <span class="input-group-btn">
         <button type="button"
                 class="btn btn-default clear-input tc_clearInputBtn"
@@ -138,7 +142,8 @@
 <ng-template #sparklineTpl
              let-row="row"
              let-value="value">
-  <cd-sparkline [data]="value" [isBinary]="row.cdIsBinary"></cd-sparkline>
+  <cd-sparkline [data]="value"
+                [isBinary]="row.cdIsBinary"></cd-sparkline>
 </ng-template>
 
 <ng-template #routerLinkTpl

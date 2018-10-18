@@ -90,6 +90,9 @@ class OrchestratorCli(MgrModule):
                 else:
                     done = True
 
+        if all(hasattr(c, 'error') and getattr(c, 'error')for c in completions):
+            raise Exception([getattr(c, 'error') for c in completions])
+
     def _list_devices(self, cmd):
         node = cmd.get('node', None)
 
@@ -265,7 +268,7 @@ class OrchestratorCli(MgrModule):
         except NoOrchestrator:
             return -errno.ENODEV, "", "No orchestrator configured"
         except ImportError as e:
-            return -errno.ENOENT, "", e.message
+            return -errno.ENOENT, "", str(e)
         except NotImplementedError:
             return -errno.EINVAL, "", "Command not found"
 

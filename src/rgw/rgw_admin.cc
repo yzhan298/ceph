@@ -58,6 +58,16 @@
 
 static RGWRados *store = NULL;
 
+static const DoutPrefixProvider* dpp() {
+  struct GlobalPrefix : public DoutPrefixProvider {
+    CephContext *get_cct() const override { return store->ctx(); }
+    unsigned get_subsys() const override { return dout_subsys; }
+    std::ostream& gen_prefix(std::ostream& out) const override { return out; }
+  };
+  static GlobalPrefix global_dpp;
+  return &global_dpp;
+}
+
 void usage()
 {
   cout << "usage: radosgw-admin <cmd> [options...]" << std::endl;
@@ -2295,7 +2305,7 @@ static int bucket_source_sync_status(RGWRados *store, const RGWZone& zone,
     return 0;
   }
   std::vector<rgw_bucket_shard_sync_info> status;
-  int r = rgw_bucket_sync_status(store, source.id, bucket_info, &status);
+  int r = rgw_bucket_sync_status(dpp(), store, source.id, bucket_info, &status);
   if (r < 0) {
     lderr(store->ctx()) << "failed to read bucket sync status: " << cpp_strerror(r) << dendl;
     return r;
@@ -2842,7 +2852,7 @@ int main(int argc, const char **argv)
         return EINVAL;
       }
     } else if (ceph_argparse_witharg(args, i, &val, "--max-size", (char*)NULL)) {
-      max_size = strict_iecstrtoll(val.c_str(), &err);
+      max_size = strict_iec_cast<long long>(val.c_str(), &err);
       if (!err.empty()) {
         cerr << "ERROR: failed to parse max size: " << err << std::endl;
         return EINVAL;
@@ -4997,21 +5007,14 @@ int main(int argc, const char **argv)
         cerr << "ERROR: assume role policy document is empty" << std::endl;
         return -EINVAL;
       }
-      /* The following two calls will be replaced by read_decode_json or something
-         similar when the code for AWS Policies is in places */
-      bufferlist bl;
-      int ret = read_input(assume_role_doc, bl);
-      if (ret < 0) {
-        cerr << "ERROR: failed to read input: " << cpp_strerror(-ret) << std::endl;
-        return ret;
-      }
-      JSONParser p;
-      if (!p.parse(bl.c_str(), bl.length())) {
-        cout << "ERROR: failed to parse JSON: " << assume_role_doc << std::endl;
+      bufferlist bl = bufferlist::static_from_string(assume_role_doc);
+      try {
+        const rgw::IAM::Policy p(g_ceph_context, tenant, bl);
+      } catch (rgw::IAM::PolicyParseException& e) {
+        cerr << "failed to parse policy: " << e.what() << std::endl;
         return -EINVAL;
       }
-      string trust_policy = bl.to_str();
-      RGWRole role(g_ceph_context, store, role_name, path, trust_policy, tenant);
+      RGWRole role(g_ceph_context, store, role_name, path, assume_role_doc, tenant);
       ret = role.create(true);
       if (ret < 0) {
         return -ret;
@@ -5113,28 +5116,20 @@ int main(int argc, const char **argv)
         return -EINVAL;
       }
 
-      /* The following two calls will be replaced by read_decode_json or something
-         similar, when code for AWS Policies is in place.*/
-      bufferlist bl;
-      int ret = read_input(perm_policy_doc, bl);
-      if (ret < 0) {
-        cerr << "ERROR: failed to read input: " << cpp_strerror(-ret) << std::endl;
-        return ret;
-      }
-      JSONParser p;
-      if (!p.parse(bl.c_str(), bl.length())) {
-        cout << "ERROR: failed to parse JSON: " << std::endl;
+      bufferlist bl = bufferlist::static_from_string(perm_policy_doc);
+      try {
+        const rgw::IAM::Policy p(g_ceph_context, tenant, bl);
+      } catch (rgw::IAM::PolicyParseException& e) {
+        cerr << "failed to parse perm policy: " << e.what() << std::endl;
         return -EINVAL;
       }
-      string perm_policy;
-      perm_policy = bl.c_str();
 
       RGWRole role(g_ceph_context, store, role_name, tenant);
       ret = role.get();
       if (ret < 0) {
         return -ret;
       }
-      role.set_perm_policy(policy_name, perm_policy);
+      role.set_perm_policy(policy_name, perm_policy_doc);
       ret = role.update();
       if (ret < 0) {
         return -ret;
@@ -6691,7 +6686,7 @@ next:
     }
 
     auto num_shards = g_conf()->rgw_md_log_max_shards;
-    ret = crs.run(create_admin_meta_log_trim_cr(store, &http, num_shards));
+    ret = crs.run(create_admin_meta_log_trim_cr(dpp(), store, &http, num_shards));
     if (ret < 0) {
       cerr << "automated mdlog trim failed with " << cpp_strerror(ret) << std::endl;
       return -ret;

@@ -48,7 +48,6 @@
 #include "common/ceph_time.h"
 #include "common/version.h"
 #include "common/pick_address.h"
-#include "common/SubProcess.h"
 #include "common/blkdev.h"
 
 #include "os/ObjectStore.h"
@@ -1703,11 +1702,15 @@ void OSDService::set_ready_to_merge_source(PG *pg)
   _send_ready_to_merge();
 }
 
-void OSDService::set_ready_to_merge_target(PG *pg, epoch_t last_epoch_clean)
+void OSDService::set_ready_to_merge_target(PG *pg,
+					   epoch_t last_epoch_started,
+					   epoch_t last_epoch_clean)
 {
   Mutex::Locker l(merge_lock);
   dout(10) << __func__ << " " << pg->pg_id << dendl;
-  ready_to_merge_target.insert(make_pair(pg->pg_id.pgid, last_epoch_clean));
+  ready_to_merge_target.insert(make_pair(pg->pg_id.pgid,
+					 make_pair(last_epoch_started,
+						   last_epoch_clean)));
   assert(not_ready_to_merge_target.count(pg->pg_id.pgid) == 0);
   _send_ready_to_merge();
 }
@@ -1750,6 +1753,7 @@ void OSDService::_send_ready_to_merge()
       monc->send_mon_message(new MOSDPGReadyToMerge(
 			       src,
 			       0,
+			       0,
 			       false,
 			       osdmap->get_epoch()));
       sent_ready_to_merge_source.insert(src);
@@ -1759,6 +1763,7 @@ void OSDService::_send_ready_to_merge()
     if (sent_ready_to_merge_source.count(p.second) == 0) {
       monc->send_mon_message(new MOSDPGReadyToMerge(
 			       p.second,
+			       0,
 			       0,
 			       false,
 			       osdmap->get_epoch()));
@@ -1775,7 +1780,8 @@ void OSDService::_send_ready_to_merge()
 	sent_ready_to_merge_source.count(src) == 0) {
       monc->send_mon_message(new MOSDPGReadyToMerge(
 			       src,
-			       p->second,  // PG's last_epoch_clean
+			       p->second.first,   // PG's last_epoch_started
+			       p->second.second,  // PG's last_epoch_clean
 			       true,
 			       osdmap->get_epoch()));
       sent_ready_to_merge_source.insert(src);
@@ -2397,7 +2403,7 @@ will start to track new ops received afterwards.";
   } else if (admin_command == "calc_objectstore_db_histogram") {
     store->generate_db_histogram(f);
   } else if (admin_command == "flush_store_cache") {
-    store->flush_cache();
+    store->flush_cache(&ss);
   } else if (admin_command == "dump_pgstate_history") {
     f->open_object_section("pgstate_history");
     vector<PGRef> pgs;
@@ -2785,6 +2791,10 @@ int OSD::init()
     goto out;
 
   mgrc.set_pgstats_cb([this](){ return collect_pg_stats(); });
+  mgrc.set_perf_metric_query_cb(
+      [this](const std::list<OSDPerfMetricQuery> &queries){ set_perf_queries(queries);},
+      [this](OSDPerfMetricReport *report){ get_perf_report(report);
+    });
   mgrc.init();
   client_messenger->add_dispatcher_head(&mgrc);
 
@@ -3481,7 +3491,7 @@ int OSD::shutdown()
     osd_lock.Unlock();
     return 0;
   }
-  derr << "shutdown" << dendl;
+  dout(0) << "shutdown" << dendl;
 
   set_state(STATE_STOPPING);
 
@@ -4830,7 +4840,7 @@ void OSD::heartbeat_check()
 
     if (p->second.first_tx == utime_t()) {
       dout(25) << "heartbeat_check we haven't sent ping to osd." << p->first
-               << "yet, skipping" << dendl;
+               << " yet, skipping" << dendl;
       continue;
     }
 
@@ -6016,6 +6026,12 @@ COMMAND("compact",
 COMMAND("smart name=devid,type=CephString,req=False",
         "runs smartctl on this osd devices.  ",
         "osd", "rw", "cli,rest")
+COMMAND("cache drop",
+        "Drop all OSD caches",
+        "osd", "rwx", "cli,rest")
+COMMAND("cache status",
+        "Get OSD caches statistics",
+        "osd", "r", "cli,rest")
 };
 
 void OSD::do_command(
@@ -6492,6 +6508,42 @@ int OSD::_do_command(
     probe_smart(devid, ds);
   }
 
+  else if (prefix == "cache drop") {
+    dout(20) << "clearing all caches" << dendl;
+    // Clear the objectstore's cache - onode and buffer for Bluestore,
+    // system's pagecache for Filestore
+    r = store->flush_cache(&ss);
+    if (r < 0) {
+      ds << "Error flushing objectstore cache: " << cpp_strerror(r);
+      goto out;
+    }
+    // Clear the objectcontext cache (per PG)
+    vector<PGRef> pgs;
+    _get_pgs(&pgs);
+    for (auto& pg: pgs) {
+      pg->clear_cache();
+    }
+  }
+
+  else if (prefix == "cache status") {
+    int obj_ctx_count = 0;
+    vector<PGRef> pgs;
+    _get_pgs(&pgs);
+    for (auto& pg: pgs) {
+      obj_ctx_count += pg->get_cache_obj_count();
+    }
+    if (f) {
+      f->open_object_section("cache_status");
+      f->dump_int("object_ctx", obj_ctx_count);
+      store->dump_cache_stats(f.get());
+      f->close_section();
+      f->flush(ds);
+    } else {
+      ds << "object_ctx: " << obj_ctx_count;
+      store->dump_cache_stats(ds);
+    }
+  }
+
   else {
     ss << "unrecognized command '" << prefix << "'";
     r = -EINVAL;
@@ -6529,10 +6581,12 @@ void OSD::probe_smart(const string& only_devid, ostream& ss)
     }
 
     std::string result;
-    if (probe_smart_device(("/dev/" + dev).c_str(), smart_timeout, &result)) {
+    if (block_device_run_smartctl(("/dev/" + dev).c_str(), smart_timeout,
+				  &result)) {
       dout(10) << "probe_smart_device failed for /dev/" << dev << dendl;
       //continue;
-      result = "{\"error\": \"smartctl failed\", \"dev\": \"" + dev + "\"}";
+      result = "{\"error\": \"smartctl failed\", \"dev\": \"" + dev +
+	"\", \"smartctl_error\": \"" + result + "\"}";
     }
 
     // TODO: change to read_or_throw?
@@ -6544,44 +6598,6 @@ void OSD::probe_smart(const string& only_devid, ostream& ss)
     // no need to result.clear() or clear smart_json
   }
   json_spirit::write(json_map, ss, json_spirit::pretty_print);
-}
-
-int OSD::probe_smart_device(const char *device, int timeout, std::string *result)
-{
-  // when using --json, smartctl will report its errors in JSON format to stdout 
-  SubProcessTimed smartctl(
-    "sudo", SubProcess::CLOSE, SubProcess::PIPE, SubProcess::CLOSE,
-    timeout);
-  smartctl.add_cmd_args(
-    "smartctl",
-    "-a",
-    //"-x",
-    "--json",
-    device,
-    NULL);
-
-  int ret = smartctl.spawn();
-  if (ret != 0) {
-    derr << "failed run smartctl: " << smartctl.err() << dendl;
-    return ret;
-  }
-
-  bufferlist output;
-  ret = output.read_fd(smartctl.get_stdout(), 100*1024);
-  if (ret < 0) {
-    derr << "failed read from smartctl: " << cpp_strerror(-ret) << dendl;
-  } else {
-    ret = 0;
-    *result = output.to_str();
-    dout(10) << "smartctl output is: " << *result << dendl;
-  }
-
-  if (smartctl.join() != 0) {
-    derr << smartctl.err() << dendl;
-    return -EINVAL;
-  }
-
-  return ret;
 }
 
 bool OSD::heartbeat_dispatch(Message *m)
@@ -6834,83 +6850,59 @@ bool OSD::ms_get_authorizer(int dest_type, AuthAuthorizer **authorizer, bool for
   return *authorizer != NULL;
 }
 
-
-bool OSD::ms_verify_authorizer(
-  Connection *con, int peer_type,
-  int protocol, bufferlist& authorizer_data, bufferlist& authorizer_reply,
-  bool& isvalid, CryptoKey& session_key,
-  std::unique_ptr<AuthAuthorizerChallenge> *challenge)
+KeyStore *OSD::ms_get_auth1_authorizer_keystore()
 {
-  AuthAuthorizeHandler *authorize_handler = 0;
-  switch (peer_type) {
-  case CEPH_ENTITY_TYPE_MDS:
-    /*
-     * note: mds is technically a client from our perspective, but
-     * this makes the 'cluster' consistent w/ monitor's usage.
-     */
-  case CEPH_ENTITY_TYPE_OSD:
-  case CEPH_ENTITY_TYPE_MGR:
-    authorize_handler = authorize_handler_cluster_registry->get_handler(protocol);
-    break;
-  default:
-    authorize_handler = authorize_handler_service_registry->get_handler(protocol);
-  }
-  if (!authorize_handler) {
-    dout(0) << "No AuthAuthorizeHandler found for protocol " << protocol << dendl;
-    isvalid = false;
-    return true;
-  }
+  return monc->rotating_secrets.get();
+}
 
-  AuthCapsInfo caps_info;
-  EntityName name;
-  uint64_t global_id;
-
-  auto keys = monc->rotating_secrets.get();
-  if (keys) {
-    isvalid = authorize_handler->verify_authorizer(
-      cct, keys,
-      authorizer_data, authorizer_reply, name, global_id, caps_info, session_key,
-      challenge);
+int OSD::ms_handle_authentication(Connection *con)
+{
+  int ret = 0;
+  auto priv = con->get_priv();
+  Session *s = static_cast<Session*>(priv.get());
+  if (!s) {
+    s = new Session(cct, con);
+    con->set_priv(RefCountedPtr{s, false});
+    s->entity_name = con->get_peer_entity_name();
+    dout(10) << __func__ << " new session " << s << " con " << s->con
+	     << " entity " << s->entity_name
+	     << " addr " << con->get_peer_addrs() << dendl;
   } else {
-    dout(10) << __func__ << " no rotating_keys (yet), denied" << dendl;
-    isvalid = false;
+    dout(10) << __func__ << " existing session " << s << " con " << s->con
+	     << " entity " << s->entity_name
+	     << " addr " << con->get_peer_addrs() << dendl;
   }
 
-  if (isvalid) {
-    auto priv = con->get_priv();
-    auto s = static_cast<Session*>(priv.get());
-    if (!s) {
-      s = new Session{cct, con};
-      con->set_priv(RefCountedPtr{s, false});
-      dout(10) << " new session " << s << " con=" << s->con
-	       << " addr=" << con->get_peer_addr() << dendl;
+  AuthCapsInfo &caps_info = con->get_peer_caps_info();
+  if (caps_info.allow_all)
+    s->caps.set_allow_all();
+
+  if (caps_info.caps.length() > 0) {
+    bufferlist::const_iterator p = caps_info.caps.cbegin();
+    string str;
+    try {
+      decode(str, p);
     }
-
-    s->entity_name = name;
-    if (caps_info.allow_all)
-      s->caps.set_allow_all();
-
-    if (caps_info.caps.length() > 0) {
-      auto p = caps_info.caps.cbegin();
-      string str;
-      try {
-	decode(str, p);
-      }
-      catch (buffer::error& e) {
-        isvalid = false;
-      }
-      stringstream ss;
-      bool success = s->caps.parse(str, &ss);
-      if (success)
-	dout(10) << " session " << s << " " << s->entity_name << " has caps " << s->caps << " '" << str << "'" << dendl;
-      else {
-	dout(10) << " session " << s << " " << s->entity_name << " failed to parse caps '" << str << "'" << dendl;
-	dout(20) << "parser returned " << ss.str() << dendl;
-        isvalid = false;
+    catch (buffer::error& e) {
+      dout(10) << __func__ << " session " << s << " " << s->entity_name
+	       << " failed to decode caps string" << dendl;
+      ret = -EPERM;
+    }
+    if (!ret) {
+      bool success = s->caps.parse(str);
+      if (success) {
+	dout(10) << __func__ << " session " << s
+		 << " " << s->entity_name
+		 << " has caps " << s->caps << " '" << str << "'" << dendl;
+	ret = 1;
+      } else {
+	dout(10) << __func__ << " session " << s << " " << s->entity_name
+		 << " failed to parse caps '" << str << "'" << dendl;
+	ret = -EPERM;
       }
     }
   }
-  return true;
+  return ret;
 }
 
 void OSD::do_waiters()
@@ -7445,7 +7437,6 @@ void OSD::handle_osd_map(MOSDMap *m)
       epoch_t need = osdmap->get_epoch() - max_lag;
       dout(10) << __func__ << " waiting for pgs to catch up (need " << need
 	       << " max_lag " << max_lag << ")" << dendl;
-      osd_lock.Unlock();
       for (auto shard : shards) {
 	epoch_t min = shard->get_min_pg_epoch();
 	if (need > min) {
@@ -7454,10 +7445,11 @@ void OSD::handle_osd_map(MOSDMap *m)
 		   << ", map cache is " << cct->_conf->osd_map_cache_size
 		   << ", max_lag_factor " << m_osd_pg_epoch_max_lag_factor
 		   << ")" << dendl;
+          osd_lock.Unlock();
 	  shard->wait_min_pg_epoch(need);
+          osd_lock.Lock();
 	}
       }
-      osd_lock.Lock();
     }
   }
 
@@ -8049,6 +8041,10 @@ void OSD::check_osdmap_features()
       ceph_assert(err == 0);
     }
   }
+
+  if (osdmap->require_osd_release < CEPH_RELEASE_NAUTILUS) {
+    heartbeat_dispatcher.ms_set_require_authorizer(false);
+  }
 }
 
 struct C_FinishSplits : public Context {
@@ -8203,6 +8199,8 @@ bool OSD::advance_pg(
 	    dout(1) << __func__ << " merging " << pg->pg_id << dendl;
 	    pg->merge_from(
 	      sources, rctx, split_bits,
+	      nextmap->get_pg_pool(
+		pg->pg_id.pool())->get_pg_num_dec_last_epoch_started(),
 	      nextmap->get_pg_pool(
 		pg->pg_id.pool())->get_pg_num_dec_last_epoch_clean());
 	    pg->pg_slot->waiting_for_merge_epoch = 0;
@@ -9763,6 +9761,11 @@ int OSD::init_op_flags(OpRequestRef& op)
   return 0;
 }
 
+void OSD::set_perf_queries(const std::list<OSDPerfMetricQuery> &queries) {
+}
+
+void OSD::get_perf_report(OSDPerfMetricReport *report) {
+}
 
 // =============================================================
 
@@ -10200,30 +10203,8 @@ void OSD::ShardedOpWQ::_process(uint32_t thread_index, heartbeat_handle_d *hb)
 
   // peek at spg_t
   sdata->shard_lock.Lock();
-  if (is_smallest_thread_index) {
-    if (sdata->pqueue->empty() && sdata->context_queue.empty()) {
-      sdata->sdata_wait_lock.Lock();
-      if (!sdata->stop_waiting) {
-	dout(20) << __func__ << " empty q, waiting" << dendl;
-	osd->cct->get_heartbeat_map()->clear_timeout(hb);
-	sdata->shard_lock.Unlock();
-	sdata->sdata_cond.Wait(sdata->sdata_wait_lock);
-	sdata->sdata_wait_lock.Unlock();
-	sdata->shard_lock.Lock();
-	if (sdata->pqueue->empty() && sdata->context_queue.empty()) {
-	  sdata->shard_lock.Unlock();
-	  return;
-	}
-	osd->cct->get_heartbeat_map()->reset_timeout(hb,
-	    osd->cct->_conf->threadpool_default_timeout, 0);
-      } else {
-	dout(20) << __func__ << " need return immediately" << dendl;
-	sdata->sdata_wait_lock.Unlock();
-	sdata->shard_lock.Unlock();
-	return;
-      }
-    }
-  } else if (sdata->pqueue->empty()) {
+  if (sdata->pqueue->empty() &&
+     !(is_smallest_thread_index && !sdata->context_queue.empty())) {
     sdata->sdata_wait_lock.Lock();
     if (!sdata->stop_waiting) {
       dout(20) << __func__ << " empty q, waiting" << dendl;
@@ -10232,7 +10213,8 @@ void OSD::ShardedOpWQ::_process(uint32_t thread_index, heartbeat_handle_d *hb)
       sdata->sdata_cond.Wait(sdata->sdata_wait_lock);
       sdata->sdata_wait_lock.Unlock();
       sdata->shard_lock.Lock();
-      if (sdata->pqueue->empty()) {
+      if (sdata->pqueue->empty() &&
+         !(is_smallest_thread_index && !sdata->context_queue.empty())) {
 	sdata->shard_lock.Unlock();
 	return;
       }
@@ -10246,23 +10228,26 @@ void OSD::ShardedOpWQ::_process(uint32_t thread_index, heartbeat_handle_d *hb)
     }
   }
 
-  if (osd->is_stopping()) {
-    sdata->shard_lock.Unlock();
-    return;    // OSD shutdown, discard.
-  }
-
   list<Context *> oncommits;
   if (is_smallest_thread_index && !sdata->context_queue.empty()) {
     sdata->context_queue.swap(oncommits);
   }
 
   if (sdata->pqueue->empty()) {
+    if (osd->is_stopping()) {
+      sdata->shard_lock.Unlock();
+      return;    // OSD shutdown, discard.
+    }
     sdata->shard_lock.Unlock();
     handle_oncommits(oncommits);
     return;
   }
 
   OpQueueItem item = sdata->pqueue->dequeue();
+  if (osd->is_stopping()) {
+    sdata->shard_lock.Unlock();
+    return;    // OSD shutdown, discard.
+  }
 
   const auto token = item.get_ordering_token();
   auto r = sdata->pg_slots.emplace(token, nullptr);

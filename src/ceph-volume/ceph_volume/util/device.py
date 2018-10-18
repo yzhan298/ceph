@@ -11,8 +11,11 @@ class Device(object):
         # LVs can have a vg/lv path, while disks will have /dev/sda
         self.abspath = path
         self.lv_api = None
+        self.lvs = []
+        self.vg_name = None
         self.pvs_api = []
         self.disk_api = {}
+        self.blkid_api = {}
         self.sys_api = {}
         self._exists = None
         self._is_lvm_member = None
@@ -23,9 +26,12 @@ class Device(object):
         lv = lvm.get_lv_from_argument(self.path)
         if lv:
             self.lv_api = lv
+            self.lvs = [lv]
             self.abspath = lv.lv_path
+            self.vg_name = lv.vg_name
         else:
             dev = disk.lsblk(self.path)
+            self.blkid_api = disk.blkid(self.path)
             self.disk_api = dev
             device_type = dev.get('TYPE', '')
             # always check is this is an lvm member
@@ -35,6 +41,8 @@ class Device(object):
         if not sys_info.devices:
             sys_info.devices = disk.get_devices()
         self.sys_api = sys_info.devices.get(self.abspath, {})
+
+        self.ceph_disk = CephDiskDevice(self)
 
     def __repr__(self):
         prefix = 'Unknown'
@@ -57,8 +65,15 @@ class Device(object):
                 return self._is_lvm_member
             has_vgs = [pv.vg_name for pv in pvs if pv.vg_name]
             if has_vgs:
+                # a pv can only be in one vg, so this should be safe
+                self.vg_name = has_vgs[0]
                 self._is_lvm_member = True
                 self.pvs_api = pvs
+                for pv in pvs:
+                    if pv.vg_name and pv.lv_uuid:
+                        lv = lvm.get_lv(vg_name=pv.vg_name, lv_uuid=pv.lv_uuid)
+                        if lv:
+                            self.lvs.append(lv)
             else:
                 # this is contentious, if a PV is recognized by LVM but has no
                 # VGs, should we consider it as part of LVM? We choose not to
@@ -72,10 +87,20 @@ class Device(object):
         return os.path.exists(self.abspath)
 
     @property
+    def rotational(self):
+        if self.sys_api['rotational'] == '1':
+            return True
+        return False
+
+    @property
     def is_lvm_member(self):
         if self._is_lvm_member is None:
             self._set_lvm_membership()
         return self._is_lvm_member
+
+    @property
+    def is_ceph_disk_member(self):
+        return self.ceph_disk.is_member
 
     @property
     def is_mapper(self):
@@ -96,3 +121,55 @@ class Device(object):
         if self.disk_api:
             return self.disk_api['TYPE'] == 'device'
         return False
+
+    @property
+    def used_by_ceph(self):
+        # only filter out data devices as journals could potentially be reused
+        osd_ids = [lv.tags.get("ceph.osd_id") is not None for lv in self.lvs
+                   if lv.tags.get("ceph.type") in ["data", "block"]]
+        return any(osd_ids)
+
+
+class CephDiskDevice(object):
+    """
+    Detect devices that have been created by ceph-disk, report their type
+    (journal, data, etc..). Requires a ``Device`` object as input.
+    """
+
+    def __init__(self, device):
+        self.device = device
+        self._is_ceph_disk_member = None
+
+    @property
+    def partlabel(self):
+        """
+        In containers, the 'PARTLABEL' attribute might not be detected
+        correctly via ``lsblk``, so we poke at the value with ``lsblk`` first,
+        falling back to ``blkid`` (which works correclty in containers).
+        """
+        lsblk_partlabel = self.device.disk_api.get('PARTLABEL')
+        if lsblk_partlabel:
+            return lsblk_partlabel
+        return self.device.blkid_api.get('PARTLABEL', '')
+
+    @property
+    def is_member(self):
+        if self._is_ceph_disk_member is None:
+            if 'ceph' in self.partlabel:
+                self._is_ceph_disk_member = True
+                return True
+            return False
+        return self._is_ceph_disk_member
+
+    @property
+    def type(self):
+        types = [
+            'data', 'wal', 'db', 'lockbox', 'journal',
+            # ceph-disk uses 'ceph block' when placing data in bluestore, but
+            # keeps the regular OSD files in 'ceph data' :( :( :( :(
+            'block',
+        ]
+        for t in types:
+            if t in self.partlabel:
+                return t
+        return 'unknown'

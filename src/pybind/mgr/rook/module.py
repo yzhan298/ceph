@@ -17,7 +17,7 @@ except ImportError:
     client = None
     config = None
 
-from rook_cluster import RookCluster, ApplyException
+from .rook_cluster import RookCluster
 
 
 all_completions = []
@@ -164,6 +164,7 @@ class RookOrchestrator(MgrModule, orchestrator.Orchestrator):
                     c.message
                 ))
                 c.error = e
+                c._complete = True
                 if not c.is_read:
                     self._progress("complete", c.id)
             else:
@@ -181,18 +182,18 @@ class RookOrchestrator(MgrModule, orchestrator.Orchestrator):
         if kubernetes_imported:
             return True, ""
         else:
-            return False, "Kubernetes module not found"
+            return False, "`kubernetes` python module not found"
 
     def available(self):
         if not kubernetes_imported:
-            return False, "Kubernetes module not found"
-        elif not self._in_cluster():
+            return False, "`kubernetes` python module not found"
+        elif not self._in_cluster_name:
             return False, "ceph-mgr not running in Rook cluster"
 
         try:
             self.k8s.list_namespaced_pod(self.rook_cluster.cluster_name)
-        except ApiException:
-            return False, "Cannot reach Kubernetes API"
+        except ApiException as e:
+            return False, "Cannot reach Kubernetes API: {}".format(e)
         else:
             return True, ""
 
@@ -218,23 +219,27 @@ class RookOrchestrator(MgrModule, orchestrator.Orchestrator):
         self._initialized.wait()
         return self._rook_cluster
 
-    def _in_cluster(self):
+    @property
+    def _in_cluster_name(self):
         """
         Check if we appear to be running inside a Kubernetes/Rook
         cluster
 
-        :return: bool
+        :return: str
         """
-        return 'ROOK_CLUSTER_NAME' in os.environ
+        if 'POD_NAMESPACE' in os.environ:
+            return os.environ['POD_NAMESPACE']
+        if 'ROOK_CLUSTER_NAME' in os.environ:
+            return os.environ['ROOK_CLUSTER_NAME']
 
     def serve(self):
         # For deployed clusters, we should always be running inside
         # a Rook cluster.  For development convenience, also support
         # running outside (reading ~/.kube config)
 
-        if self._in_cluster():
+        if self._in_cluster_name:
             config.load_incluster_config()
-            cluster_name = os.environ['ROOK_CLUSTER_NAME']
+            cluster_name = self._in_cluster_name
         else:
             self.log.warning("DEVELOPMENT ONLY: Reading kube config from ~")
             config.load_kube_config()
@@ -247,15 +252,20 @@ class RookOrchestrator(MgrModule, orchestrator.Orchestrator):
 
         self._k8s = client.CoreV1Api()
 
-        # XXX mystery hack -- I need to do an API call from
-        # this context, or subsequent API usage from handle_command
-        # fails with SSLError('bad handshake').  Suspect some kind of
-        # thread context setup in SSL lib?
-        self._k8s.list_namespaced_pod(cluster_name)
+        try:
+            # XXX mystery hack -- I need to do an API call from
+            # this context, or subsequent API usage from handle_command
+            # fails with SSLError('bad handshake').  Suspect some kind of
+            # thread context setup in SSL lib?
+            self._k8s.list_namespaced_pod(cluster_name)
+        except ApiException:
+            # Ignore here to make self.available() fail with a proper error message
+            pass
 
         self._rook_cluster = RookCluster(
             self._k8s,
             cluster_name)
+
 
         # In case Rook isn't already clued in to this ceph
         # cluster's existence, initialize it.
@@ -270,8 +280,7 @@ class RookOrchestrator(MgrModule, orchestrator.Orchestrator):
 
             global all_completions
             self.wait(all_completions)
-            all_completions = filter(lambda x: not x.is_complete,
-                                     all_completions)
+            all_completions = [c for c in all_completions if not c.is_complete]
 
             self._shutdown.wait(5)
 
@@ -320,7 +329,8 @@ class RookOrchestrator(MgrModule, orchestrator.Orchestrator):
 
     @deferred_read
     def describe_service(self, service_type, service_id):
-        assert service_type in ("mds", "osd", "mon", "rgw")
+
+        assert service_type in ("mds", "osd", "mon", "rgw"), service_type + " unsupported"
 
         pods = self.rook_cluster.describe_pods(service_type, service_id)
 

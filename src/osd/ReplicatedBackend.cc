@@ -567,9 +567,7 @@ void ReplicatedBackend::do_repop_reply(OpRequestRef op)
       ceph_assert(ip_op.waiting_for_commit.count(from));
       ip_op.waiting_for_commit.erase(from);
       if (ip_op.op) {
-        ostringstream ss;
-        ss << "sub_op_commit_rec from " << from;
-	ip_op.op->mark_event_string(ss.str());
+	ip_op.op->mark_event_string("sub_op_commit_rec");
 	ip_op.op->pg_trace.event("sub_op_commit_rec");
       }
     } else {
@@ -1697,7 +1695,7 @@ bool ReplicatedBackend::handle_pull_response(
 
   pi.stat.num_keys_recovered += pop.omap_entries.size();
   pi.stat.num_bytes_recovered += data.length();
-  get_parent()->get_logger()->inc(l_osd_rop, pop.omap_entries.size() + data.length());
+  get_parent()->get_logger()->inc(l_osd_rbytes, pop.omap_entries.size() + data.length());
 
   if (complete) {
     pi.stat.num_objects_recovered++;

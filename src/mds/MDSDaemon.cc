@@ -95,7 +95,7 @@ MDSDaemon::MDSDaemon(std::string_view n, Messenger *m, MonClient *mc) :
 }
 
 MDSDaemon::~MDSDaemon() {
-  Mutex::Locker lock(mds_lock);
+  std::lock_guard lock(mds_lock);
 
   delete mds_rank;
   mds_rank = NULL;
@@ -162,7 +162,7 @@ void MDSDaemon::dump_status(Formatter *f)
   f->dump_string("state", ceph_mds_state_name(mdsmap->get_state_gid(mds_gid_t(
 	    monc->get_global_id()))));
   if (mds_rank) {
-    Mutex::Locker l(mds_lock);
+    std::lock_guard l(mds_lock);
     mds_rank->dump_status(f);
   }
 
@@ -243,6 +243,11 @@ void MDSDaemon::set_up_admin_socket()
                                      "cache status",
                                      asok_hook,
                                      "show cache status");
+  ceph_assert(r == 0);
+  r = admin_socket->register_command("cache drop",
+                                     "cache drop name=timeout,type=CephInt,range=1",
+                                     asok_hook,
+                                     "drop cache");
   ceph_assert(r == 0);
   r = admin_socket->register_command("dump tree",
 				     "dump tree "
@@ -696,6 +701,9 @@ COMMAND("heap " \
 	"name=heapcmd,type=CephChoices,strings=dump|start_profiler|stop_profiler|release|stats", \
 	"show heap usage info (available only if compiled with tcmalloc)", \
 	"mds", "*", "cli,rest")
+COMMAND("cache drop name=timeout,type=CephInt,range=1", "trim cache and optionally "
+	"request client to release all caps and flush the journal", "mds",
+	"r", "cli,rest")
 };
 
 
@@ -861,8 +869,8 @@ int MDSDaemon::_handle_command(
     else {
       bool handled;
       try {
-	handled = mds_rank->handle_command(cmdmap, m, &r, &ds, &ss,
-					   need_reply);
+        handled = mds_rank->handle_command(cmdmap, m, &r, &ds, &ss,
+                                           run_later, need_reply);
 	if (!handled) {
 	  // MDSDaemon doesn't know this command
 	  ss << "unrecognized command! " << prefix;
@@ -1036,7 +1044,7 @@ void MDSDaemon::handle_signal(int signum)
   ceph_assert(signum == SIGINT || signum == SIGTERM);
   derr << "*** got signal " << sig_str(signum) << " ***" << dendl;
   {
-    Mutex::Locker l(mds_lock);
+    std::lock_guard l(mds_lock);
     if (stopping) {
       return;
     }
@@ -1145,7 +1153,7 @@ void MDSDaemon::respawn()
 
 bool MDSDaemon::ms_dispatch2(const Message::ref &m)
 {
-  Mutex::Locker l(mds_lock);
+  std::lock_guard l(mds_lock);
   if (stopping) {
     return false;
   }
@@ -1237,7 +1245,7 @@ bool MDSDaemon::ms_handle_reset(Connection *con)
   if (con->get_peer_type() != CEPH_ENTITY_TYPE_CLIENT)
     return false;
 
-  Mutex::Locker l(mds_lock);
+  std::lock_guard l(mds_lock);
   if (stopping) {
     return false;
   }
@@ -1264,7 +1272,7 @@ void MDSDaemon::ms_handle_remote_reset(Connection *con)
   if (con->get_peer_type() != CEPH_ENTITY_TYPE_CLIENT)
     return;
 
-  Mutex::Locker l(mds_lock);
+  std::lock_guard l(mds_lock);
   if (stopping) {
     return;
   }
@@ -1289,129 +1297,97 @@ bool MDSDaemon::ms_handle_refused(Connection *con)
   return false;
 }
 
-bool MDSDaemon::ms_verify_authorizer(Connection *con, int peer_type,
-			       int protocol, bufferlist& authorizer_data, bufferlist& authorizer_reply,
-				     bool& is_valid, CryptoKey& session_key,
-				     std::unique_ptr<AuthAuthorizerChallenge> *challenge)
+KeyStore *MDSDaemon::ms_get_auth1_authorizer_keystore()
 {
-  Mutex::Locker l(mds_lock);
-  if (stopping) {
-    return false;
-  }
-  if (beacon.get_want_state() == CEPH_MDS_STATE_DNE)
-    return false;
-
-  AuthAuthorizeHandler *authorize_handler = 0;
-  switch (peer_type) {
-  case CEPH_ENTITY_TYPE_MDS:
-    authorize_handler = authorize_handler_cluster_registry->get_handler(protocol);
-    break;
-  default:
-    authorize_handler = authorize_handler_service_registry->get_handler(protocol);
-  }
-  if (!authorize_handler) {
-    dout(0) << "No AuthAuthorizeHandler found for protocol " << protocol << dendl;
-    is_valid = false;
-    return true;
-  }
-
-  AuthCapsInfo caps_info;
-  EntityName name;
-  uint64_t global_id;
-
-  if (auto keys = monc->rotating_secrets.get(); keys) {
-    is_valid = authorize_handler->verify_authorizer(
-      cct, keys,
-      authorizer_data, authorizer_reply, name, global_id, caps_info,
-      session_key, challenge);
-  } else {
-    dout(10) << __func__ << " no rotating_keys (yet), denied" << dendl;
-    is_valid = false;
-  }
-
-  if (is_valid) {
-    entity_name_t n(con->get_peer_type(), global_id);
-
-    // We allow connections and assign Session instances to connections
-    // even if we have not been assigned a rank, because clients with
-    // "allow *" are allowed to connect and do 'tell' operations before
-    // we have a rank.
-    Session *s = NULL;
-    if (mds_rank) {
-      // If we do hold a rank, see if this is an existing client establishing
-      // a new connection, rather than a new client
-      s = mds_rank->sessionmap.get_session(n);
-    }
-
-    // Wire up a Session* to this connection
-    // It doesn't go into a SessionMap instance until it sends an explicit
-    // request to open a session (initial state of Session is `closed`)
-    if (!s) {
-      s = new Session(con);
-      s->info.auth_name = name;
-      s->info.inst.addr = con->get_peer_addr();
-      s->info.inst.name = n;
-      dout(10) << " new session " << s << " for " << s->info.inst << " con " << con << dendl;
-      con->set_priv(RefCountedPtr{s, false});
-      if (mds_rank) {
-        mds_rank->kick_waiters_for_any_client_connection();
-      }
-    } else {
-      dout(10) << " existing session " << s << " for " << s->info.inst
-	       << " existing con " << s->get_connection()
-	       << ", new/authorizing con " << con << dendl;
-      con->set_priv(RefCountedPtr{s});
-
-
-
-      // Wait until we fully accept the connection before setting
-      // s->connection.  In particular, if there are multiple incoming
-      // connection attempts, they will all get their authorizer
-      // validated, but some of them may "lose the race" and get
-      // dropped.  We only want to consider the winner(s).  See
-      // ms_handle_accept().  This is important for Sessions we replay
-      // from the journal on recovery that don't have established
-      // messenger state; we want the con from only the winning
-      // connect attempt(s).  (Normal reconnects that don't follow MDS
-      // recovery are reconnected to the existing con by the
-      // messenger.)
-    }
-
-    if (caps_info.allow_all) {
-      // Flag for auth providers that don't provide cap strings
-      s->auth_caps.set_allow_all();
-    } else {
-      auto p = caps_info.caps.cbegin();
-      string auth_cap_str;
-      try {
-        decode(auth_cap_str, p);
-
-        dout(10) << __func__ << ": parsing auth_cap_str='" << auth_cap_str << "'" << dendl;
-        std::ostringstream errstr;
-        if (!s->auth_caps.parse(g_ceph_context, auth_cap_str, &errstr)) {
-          dout(1) << __func__ << ": auth cap parse error: " << errstr.str()
-		  << " parsing '" << auth_cap_str << "'" << dendl;
-	  clog->warn() << name << " mds cap '" << auth_cap_str
-		       << "' does not parse: " << errstr.str();
-          is_valid = false;
-        }
-      } catch (buffer::error& e) {
-        // Assume legacy auth, defaults to:
-        //  * permit all filesystem ops
-        //  * permit no `tell` ops
-        dout(1) << __func__ << ": cannot decode auth caps bl of length " << caps_info.caps.length() << dendl;
-        is_valid = false;
-      }
-    }
-  }
-
-  return true;  // we made a decision (see is_valid)
+  return monc->rotating_secrets.get();
 }
 
+int MDSDaemon::ms_handle_authentication(Connection *con)
+{
+  int ret = 0;
+  entity_name_t n(con->get_peer_type(), con->get_peer_global_id());
+
+  // We allow connections and assign Session instances to connections
+  // even if we have not been assigned a rank, because clients with
+  // "allow *" are allowed to connect and do 'tell' operations before
+  // we have a rank.
+  Session *s = NULL;
+  if (mds_rank) {
+    // If we do hold a rank, see if this is an existing client establishing
+    // a new connection, rather than a new client
+    s = mds_rank->sessionmap.get_session(n);
+  }
+
+  // Wire up a Session* to this connection
+  // It doesn't go into a SessionMap instance until it sends an explicit
+  // request to open a session (initial state of Session is `closed`)
+  if (!s) {
+    s = new Session(con);
+    s->info.auth_name = con->get_peer_entity_name();
+    s->info.inst.addr = con->get_peer_addr();
+    s->info.inst.name = n;
+    dout(10) << " new session " << s << " for " << s->info.inst
+	     << " con " << con << dendl;
+    con->set_priv(RefCountedPtr{s, false});
+    if (mds_rank) {
+      mds_rank->kick_waiters_for_any_client_connection();
+    }
+  } else {
+    dout(10) << " existing session " << s << " for " << s->info.inst
+	     << " existing con " << s->get_connection()
+	     << ", new/authorizing con " << con << dendl;
+    con->set_priv(RefCountedPtr{s});
+
+    // Wait until we fully accept the connection before setting
+    // s->connection.  In particular, if there are multiple incoming
+    // connection attempts, they will all get their authorizer
+    // validated, but some of them may "lose the race" and get
+    // dropped.  We only want to consider the winner(s).  See
+    // ms_handle_accept().  This is important for Sessions we replay
+    // from the journal on recovery that don't have established
+    // messenger state; we want the con from only the winning
+    // connect attempt(s).  (Normal reconnects that don't follow MDS
+    // recovery are reconnected to the existing con by the
+    // messenger.)
+  }
+
+  AuthCapsInfo &caps_info = con->get_peer_caps_info();
+  if (caps_info.allow_all) {
+    // Flag for auth providers that don't provide cap strings
+    s->auth_caps.set_allow_all();
+  } else {
+    auto p = caps_info.caps.cbegin();
+    string auth_cap_str;
+    try {
+      decode(auth_cap_str, p);
+
+      dout(10) << __func__ << ": parsing auth_cap_str='" << auth_cap_str << "'"
+	       << dendl;
+      std::ostringstream errstr;
+      if (!s->auth_caps.parse(g_ceph_context, auth_cap_str, &errstr)) {
+	dout(1) << __func__ << ": auth cap parse error: " << errstr.str()
+		<< " parsing '" << auth_cap_str << "'" << dendl;
+	clog->warn() << name << " mds cap '" << auth_cap_str
+		     << "' does not parse: " << errstr.str();
+	ret = -EPERM;
+      } else {
+	ret = 1;
+      }
+    } catch (buffer::error& e) {
+      // Assume legacy auth, defaults to:
+      //  * permit all filesystem ops
+      //  * permit no `tell` ops
+      dout(1) << __func__ << ": cannot decode auth caps bl of length "
+	      << caps_info.caps.length() << dendl;
+      ret = -EPERM;
+    }
+  }
+  return ret;
+}
 
 void MDSDaemon::ms_handle_accept(Connection *con)
 {
-  Mutex::Locker l(mds_lock);
+  std::lock_guard l(mds_lock);
   if (stopping) {
     return;
   }
