@@ -38,6 +38,9 @@
 #define dout_context cct
 #define dout_subsys ceph_subsys_bluestore
 
+#define BACKTRACE() stringstream ss;BackTrace *bt = new BackTrace(1);bt->print(ss);derr << "### backtrace: \n"<< ss.str() << dendl;delete bt;
+  
+  
 
 using bid_t = decltype(BlueStore::Blob::id);
 
@@ -7591,11 +7594,12 @@ int BlueStore::getattr(
   Collection *c = static_cast<Collection *>(c_.get());
   dout(15) << __func__ << " " << c->cid << " " << oid << " " << name << dendl;
   // backtrace begin -->
-  stringstream ss;
-  BackTrace *bt = new BackTrace(1);
-  bt->print(ss);
-  derr << "### backtrace: \n"<< ss.str() << dendl;
-  delete bt;
+  //stringstream ss;
+  //BackTrace *bt = new BackTrace(1);
+  //bt->print(ss);
+  //derr << "### backtrace: \n"<< ss.str() << dendl;
+  //delete bt;
+  //BACKTRACE();
   // backtrace end <-- 
   if (!c->exists)
     return -ENOENT;

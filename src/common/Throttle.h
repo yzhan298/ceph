@@ -78,7 +78,7 @@ public:
    * and drops below this limit.
    *
    * @param m the new max number
-   * @returns true if this method is blocked, false it it returns immediately
+   * @returns true if this method is blocked, false if it returns immediately
    */
   bool wait(int64_t m = 0);
 

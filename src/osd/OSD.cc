@@ -153,6 +153,10 @@
 #include "json_spirit/json_spirit_reader.h"
 #include "json_spirit/json_spirit_writer.h"
 
+#include "common/BackTrace.h"
+
+#define BACKTRACE() stringstream ss;BackTrace *bt = new BackTrace(1);bt->print(ss);derr << "### backtrace: \n"<< ss.str() << dendl;delete bt;
+
 #ifdef WITH_LTTNG
 #define TRACEPOINT_DEFINE
 #define TRACEPOINT_PROBE_DYNAMIC_LINKAGE
@@ -548,7 +552,7 @@ void OSDService::promote_throttle_recalibrate()
   uint64_t target_bytes_sec = cct->_conf->osd_tier_promote_max_bytes_sec;
 
   unsigned min_prob = 1;
-
+  
   uint64_t attempts, obj, bytes;
   promote_counter.sample_and_attenuate(&attempts, &obj, &bytes);
   dout(10) << __func__ << " " << attempts << " attempts, promoted "
@@ -556,7 +560,9 @@ void OSDService::promote_throttle_recalibrate()
 	   << target_obj_sec << " obj/sec or "
 	   << byte_u_t(target_bytes_sec) << "/sec"
 	   << dendl;
-
+  derr << "--> " << __func__ << "begins" << dendl;
+  //BACKTRACE();
+  
   // calculate what the probability *should* be, given the targets
   unsigned new_prob;
   if (attempts && dur > 0) {
@@ -9605,7 +9611,8 @@ void OSD::ShardedOpWQ::_process(uint32_t thread_index, heartbeat_handle_d *hb)
   assert(sdata);
   // peek at spg_t
   sdata->shard_lock.Lock();
-
+  //derr << __func__ << " begins" << dendl;
+  //BACKTRACE();
   if (2 == osd->cct->_conf->osd_throttle) { // FOR DEBUGGING
     if (sdata->is_throttled()) {
       dout(0) << __func__ << " new throttle start waiting" << dendl;
