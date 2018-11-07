@@ -9623,6 +9623,7 @@ void OSD::ShardedOpWQ::_process(uint32_t thread_index, heartbeat_handle_d *hb)
       sdata->sdata_wait_lock.Unlock();
       sdata->shard_lock.Lock();
       dout(0) << __func__ << " new throttle done waiting" << dendl;
+      //BACKTRACE();
     }
   }
 

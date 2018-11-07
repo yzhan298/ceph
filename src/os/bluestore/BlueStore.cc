@@ -9454,6 +9454,7 @@ int BlueStore::queue_transactions(
   ThreadPool::TPHandle *handle)
 {
   FUNCTRACE(cct);
+  //BACKTRACE();
   list<Context *> on_applied, on_commit, on_applied_sync;
   ObjectStore::Transaction::collect_contexts(
     tls, &on_applied, &on_commit, &on_applied_sync);
