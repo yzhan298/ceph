@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 
 # OSD=5 MON=2 MDS=0 MGR=0 RGW=3 ../src/vstart.sh -n -k -d -l --short 
-OSD=1 MON=1 MDS=0 MGR=0 RGW=1 ../src/vstart.sh -n -d -l -b --short 
+OSD=1 MON=1 MDS=0 MGR=0 RGW=0 ../src/vstart.sh -n -d -l -b --short 
