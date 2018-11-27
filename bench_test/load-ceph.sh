@@ -3,7 +3,7 @@ set -ex
 
 # parameters you may want to change
 
-block_size=4096 # eric 1024
+block_size=131072 # eric 1024
 obj_size=131072  #eric 4096
 concurrent=16  #eric 2048 
 parallel=8
@@ -27,7 +27,7 @@ temp=/tmp/load-ceph.$$
 do_dump() {
     count=$1
     for o in $(seq 0 $(expr $osd_count - 1)) ; do
-	../build/bin/ceph daemon osd.${o} dump_op_pq_state 2>/dev/null | tee raw.${count}.${o} | jq 'map(.size)' >$temp
+	../build/bin/ceph daemon osd.${o} dump_op_pq_state 2>/dev/null | tee raw.${count}.${o} | jq 'map(.size)' >$temp #dump sharded op queue size
 	for s in $(seq 0 $(expr $shard_count - 1)) ; do
 	    size=$(jq ".[${s}]" $temp)
 	    echo "${count}.${o}.${s} : ${size}"

@@ -20,3 +20,4 @@ cp ../bench_test/load-all.jl .
 #./make-julia6.sh
 #julia load-all.jl
 ../bench_test/draw.sh
+../bench_test/move-oio-data.sh
