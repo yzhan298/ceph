@@ -4053,8 +4053,10 @@ void BlueStore::_set_throttle_params()
     ceph_assert(bdev);
     if (bdev->is_rotational()) {
       throttle_cost_per_io = cct->_conf->bluestore_throttle_cost_per_io_hdd;
+      derr << "### disk!" << dendl;
     } else {
       throttle_cost_per_io = cct->_conf->bluestore_throttle_cost_per_io_ssd;
+      derr << "### SSD!" << dendl;
     }
   }
 
@@ -8643,7 +8645,8 @@ void BlueStore::_txc_calc_cost(TransContext *txc)
   auto ios = 1 + txc->ioc.get_num_ios();
   auto cost = throttle_cost_per_io.load();
   txc->cost = ios * cost + txc->bytes;
-  dout(10) << __func__ << " " << txc << " cost " << txc->cost << " ("
+  dout(0) << __func__ << " ###throttle###  " 
+           << txc << " cost " << txc->cost << " ("
 	   << ios << " ios * " << cost << " + " << txc->bytes
 	   << " bytes)" << dendl;
 }
@@ -9379,8 +9382,12 @@ void BlueStore::_kv_sync_thread()
       // iteration there will already be ops awake.  otherwise, we
       // end up going to sleep, and then wake up when the very first
       // transaction is ready for commit.
-      throttle_bytes.put(costs);
-
+      derr << "### before throttle is enabled" << dendl;
+      if(enable_throttle) {
+        derr << "### throttle is enabled!" << dendl; 
+        throttle_bytes.put(costs);
+      }
+      
       PExtentVector bluefs_gift_extents;
       if (bluefs &&
 	  after_flush - bluefs_last_balance >
@@ -9716,7 +9723,9 @@ void BlueStore::_deferred_aio_finish(OpSequencer *osr)
 	costs += txc->cost;
       }
     }
-    throttle_deferred_bytes.put(costs);
+    if(enable_throttle) {
+      throttle_deferred_bytes.put(costs);
+    }
     std::lock_guard l(kv_lock);
     deferred_done_queue.emplace_back(b);
   }
@@ -9832,7 +9841,9 @@ int BlueStore::queue_transactions(
     handle->suspend_tp_timeout();
 
   auto tstart = mono_clock::now();
-  throttle_bytes.get(txc->cost);
+  if(enable_throttle) {
+    throttle_bytes.get(txc->cost);
+  }
   if (txc->deferred_txn) {
     // ensure we do not block here because of deferred writes
     if (!throttle_deferred_bytes.get_or_fail(txc->cost)) {

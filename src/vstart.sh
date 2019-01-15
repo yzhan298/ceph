@@ -546,7 +546,9 @@ $extra_conf
 $DAEMONOPTS
         osd_check_max_object_name_len_on_startup = false
         osd data = $CEPH_DEV_DIR/osd\$id
+        ;osd data = /dev/sdb1/osd\$id
         osd journal = $CEPH_DEV_DIR/osd\$id/journal
+        ;osd journal = /dev/sdb1/osd\$id/journal
         osd journal size = 100
         osd class tmp = out
         osd class dir = $OBJCLASS_PATH
