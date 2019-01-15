@@ -9383,7 +9383,7 @@ void BlueStore::_kv_sync_thread()
       // end up going to sleep, and then wake up when the very first
       // transaction is ready for commit.
       derr << "### before throttle is enabled" << dendl;
-      if(enable_throttle) {
+      if(cct->_conf->enable_throttle) {
         derr << "### throttle is enabled!" << dendl; 
         throttle_bytes.put(costs);
       }
@@ -9723,7 +9723,7 @@ void BlueStore::_deferred_aio_finish(OpSequencer *osr)
 	costs += txc->cost;
       }
     }
-    if(enable_throttle) {
+    if(cct->_conf->enable_throttle) {
       throttle_deferred_bytes.put(costs);
     }
     std::lock_guard l(kv_lock);
@@ -9841,11 +9841,12 @@ int BlueStore::queue_transactions(
     handle->suspend_tp_timeout();
 
   auto tstart = mono_clock::now();
-  if(enable_throttle) {
+  if(cct->_conf->enable_throttle) {
     throttle_bytes.get(txc->cost);
   }
   if (txc->deferred_txn) {
     // ensure we do not block here because of deferred writes
+    if(cct->_conf->enable_throttle) {
     if (!throttle_deferred_bytes.get_or_fail(txc->cost)) {
       dout(10) << __func__ << " failed get throttle_deferred_bytes, aggressive"
 	       << dendl;
@@ -9858,7 +9859,7 @@ int BlueStore::queue_transactions(
       }
       throttle_deferred_bytes.get(txc->cost);
       --deferred_aggressive;
-   }
+    }}
   }
   auto tend = mono_clock::now();
 

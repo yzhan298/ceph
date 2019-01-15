@@ -562,7 +562,7 @@ $DAEMONOPTS
         filestore wbthrottle btrfs ios hard limit = 20
         filestore wbthrottle btrfs inodes hard limit = 30
         
-	
+        enable_throttle = false	
 	bluestore_throttle_bytes =  67108864
 	bluestore_throttle_deferred_bytes = 134217728
 	bluestore_throttle_cost_per_io = 0
