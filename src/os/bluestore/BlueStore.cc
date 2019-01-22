@@ -8581,7 +8581,10 @@ void BlueStore::_kv_sync_thread()
       // iteration there will already be ops awake.  otherwise, we
       // end up going to sleep, and then wake up when the very first
       // transaction is ready for commit.
-      throttle_bytes.put(costs);
+      if(cct->_conf->enable_throttle) {
+        //derr << "### throttle is enabled!" << dendl;
+        throttle_bytes.put(costs);
+      }
 
       PExtentVector bluefs_gift_extents;
       if (bluefs &&
@@ -8916,7 +8919,9 @@ void BlueStore::_deferred_aio_finish(OpSequencer *osr)
       costs += txc->cost;
     }
     osr->qcond.notify_all();
-    throttle_deferred_bytes.put(costs);
+    if(cct->_conf->enable_throttle) {
+      throttle_deferred_bytes.put(costs);
+    }
     std::lock_guard<std::mutex> l(kv_lock);
     deferred_done_queue.emplace_back(b);
   }
@@ -9033,8 +9038,10 @@ int BlueStore::queue_transactions(
     handle->suspend_tp_timeout();
 
   utime_t tstart = ceph_clock_now();
-  throttle_bytes.get(txc->cost);
-  if (txc->deferred_txn) {
+  if(cct->_conf->enable_throttle) {
+    throttle_bytes.get(txc->cost);
+  }
+  if (txc->deferred_txn && cct->_conf->enable_throttle) {
     // ensure we do not block here because of deferred writes
     if (!throttle_deferred_bytes.get_or_fail(txc->cost)) {
       dout(10) << __func__ << " failed get throttle_deferred_bytes, aggressive"

@@ -502,6 +502,14 @@ $DAEMONOPTS
         filestore wbthrottle xfs ios hard limit = 20
         filestore wbthrottle xfs inodes hard limit = 30
         filestore wbthrottle btrfs ios start flusher = 10
+
+	enable_throttle = false
+        bluestore_throttle_bytes =  67108864
+        bluestore_throttle_deferred_bytes = 134217728
+        bluestore_throttle_cost_per_io = 0
+        bluestore_throttle_cost_per_io_hdd = 670000
+        bluestore_throttle_cost_per_io_ssd = 4000
+	
         filestore wbthrottle btrfs ios hard limit = 20
         filestore wbthrottle btrfs inodes hard limit = 30
         osd copyfrom max chunk = 524288
