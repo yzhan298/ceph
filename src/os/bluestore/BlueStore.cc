@@ -8582,7 +8582,7 @@ void BlueStore::_kv_sync_thread()
       // end up going to sleep, and then wake up when the very first
       // transaction is ready for commit.
       if(cct->_conf->enable_throttle) {
-        //derr << "### throttle is enabled!" << dendl;
+        derr << "### throttle is enabled!" << dendl;
         throttle_bytes.put(costs);
       }
 

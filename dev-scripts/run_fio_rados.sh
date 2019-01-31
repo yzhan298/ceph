@@ -1,10 +1,10 @@
 #!/bin/bash
 
 bs=128k #128k
-qdepth=6144
-time=30
-size=10G
-iotype=randwrite
+qdepth=4096
+time=60
+size=100G
+iotype=write
 #thread=2
 
 #format drive
