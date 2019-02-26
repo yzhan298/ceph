@@ -4060,7 +4060,7 @@ void BlueStore::_set_throttle_params()
     }
   }
 
-  dout(10) << __func__ << " throttle_cost_per_io " << throttle_cost_per_io
+  dout(0) << __func__ << " ###throttle_cost_per_io " << throttle_cost_per_io
 	   << dendl;
 }
 void BlueStore::_set_blob_size()
@@ -8645,10 +8645,10 @@ void BlueStore::_txc_calc_cost(TransContext *txc)
   auto ios = 1 + txc->ioc.get_num_ios();
   auto cost = throttle_cost_per_io.load();
   txc->cost = ios * cost + txc->bytes;
-  dout(0) << __func__ << " ###throttle###  " 
+  dout(0) << __func__ << " ###throttle " 
            << txc << " cost " << txc->cost << " ("
-	   << ios << " ios * " << cost << " + " << txc->bytes
-	   << " bytes)" << dendl;
+	   << ios << " ios * " << cost << " + " 
+           << txc->bytes << " bytes)" << dendl;
 }
 
 void BlueStore::_txc_update_store_statfs(TransContext *txc)
@@ -9270,7 +9270,7 @@ void BlueStore::_kv_sync_thread()
       deque<DeferredBatch*> deferred_done, deferred_stable;
       uint64_t aios = 0, costs = 0;
 
-      dout(20) << __func__ << " committing " << kv_queue.size()
+      dout(0) << __func__ << "###throttle committing " << kv_queue.size()
 	       << " submitting " << kv_queue_unsubmitted.size()
 	       << " deferred done " << deferred_done_queue.size()
 	       << " stable " << deferred_stable_queue.size()
@@ -9285,10 +9285,10 @@ void BlueStore::_kv_sync_thread()
       kv_throttle_costs = 0;
       l.unlock();
 
-      dout(30) << __func__ << " committing " << kv_committing << dendl;
-      dout(30) << __func__ << " submitting " << kv_submitting << dendl;
-      dout(30) << __func__ << " deferred_done " << deferred_done << dendl;
-      dout(30) << __func__ << " deferred_stable " << deferred_stable << dendl;
+      dout(0) << __func__ << "### committing " << kv_committing << dendl;
+      dout(0) << __func__ << "### submitting " << kv_submitting << dendl;
+      dout(0) << __func__ << "### deferred_done " << deferred_done << dendl;
+      dout(0) << __func__ << "### deferred_stable " << deferred_stable << dendl;
 
       auto start = mono_clock::now();
 
@@ -9309,12 +9309,12 @@ void BlueStore::_kv_sync_thread()
       	if (aios || !deferred_done.empty()) {
 	  force_flush = true;
       	} else {
-	  dout(20) << __func__ << " skipping flush (no aios, no deferred_done)" << dendl;
+	  dout(0) << __func__ << " skipping flush (no aios, no deferred_done)" << dendl;
       	}
       }
 
       if (force_flush) {
-	dout(20) << __func__ << " num_aios=" << aios
+	dout(0) << __func__ << " num_aios=" << aios
 		 << " force_flush=" << (int)force_flush
 		 << ", flushing, deferred done->stable" << dendl;
 	// flush/barrier on block device
@@ -9384,7 +9384,8 @@ void BlueStore::_kv_sync_thread()
       // transaction is ready for commit.
       //derr << "### before throttle is enabled" << dendl;
       if(cct->_conf->enable_throttle) {
-        //derr << "### throttle is enabled!" << dendl; 
+        //derr << "### throttle is enabled!" << dendl;
+        dout(0) << __func__ << "###throttle put[2], put " << costs << " cost" << dendl; 
         throttle_bytes.put(costs);
       }
       
@@ -9540,6 +9541,7 @@ void BlueStore::_kv_finalize_thread()
       if (!deferred_aggressive) {
 	if (deferred_queue_size >= deferred_batch_ops.load() ||
 	    throttle_deferred_bytes.past_midpoint()) {
+          dout(0) << __func__ << "### deferred queue is tried to submit ops" << dendl;
 	  deferred_try_submit();
 	}
       }
@@ -9724,6 +9726,7 @@ void BlueStore::_deferred_aio_finish(OpSequencer *osr)
       }
     }
     if(cct->_conf->enable_throttle) {
+      dout(0) << __func__ << "### deferred bytes put " << costs << " cost" << dendl;
       throttle_deferred_bytes.put(costs);
     }
     std::lock_guard l(kv_lock);
@@ -9817,8 +9820,10 @@ int BlueStore::queue_transactions(
   // prepare
   TransContext *txc = _txc_create(static_cast<Collection*>(ch.get()), osr,
 				  &on_commit);
-
+  dout(0) << __func__ << "###throttle create txc and set txc->bytes: " << txc->bytes << dendl;
   for (vector<Transaction>::iterator p = tls.begin(); p != tls.end(); ++p) {
+    dout(0) << __func__ << "###throttle transaction cost: " << (*p).get_num_bytes() 
+    << ", get_num_ops=" << (*p).get_num_ops() << dendl;
     txc->bytes += (*p).get_num_bytes();
     _txc_add_transaction(txc, &(*p));
   }
@@ -9842,6 +9847,9 @@ int BlueStore::queue_transactions(
 
   auto tstart = mono_clock::now();
   if(cct->_conf->enable_throttle) {
+    dout(0) << __func__ << " ###throttle get[1], get " << txc->cost << " cost" 
+    << ", state_name=" << txc->get_state_name()
+    << dendl; 
     throttle_bytes.get(txc->cost);
   }
   if (txc->deferred_txn) {

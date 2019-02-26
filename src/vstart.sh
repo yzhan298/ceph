@@ -3,6 +3,8 @@
 # abort on failure
 set -e
 
+CEPH_DEV_DIR=/mnt/sdb1
+
 if [ -n "$VSTART_DEST" ]; then
   SRC_PATH=`dirname $0`
   SRC_PATH=`(cd $SRC_PATH; pwd)`
@@ -12,7 +14,7 @@ if [ -n "$VSTART_DEST" ]; then
   CEPH_LIB=${PWD}/lib
 
   CEPH_CONF_PATH=$VSTART_DEST
-  CEPH_DEV_DIR=$VSTART_DEST/dev
+  # CEPH_DEV_DIR=$VSTART_DEST/dev
   CEPH_OUT_DIR=$VSTART_DEST/out
   CEPH_ASOK_DIR=$VSTART_DEST/out
 fi
@@ -561,13 +563,21 @@ $DAEMONOPTS
         filestore wbthrottle btrfs ios start flusher = 10
         filestore wbthrottle btrfs ios hard limit = 20
         filestore wbthrottle btrfs inodes hard limit = 30
-        
-        enable_throttle = false	
-	bluestore_throttle_bytes =  67108864
-	bluestore_throttle_deferred_bytes = 134217728
-	bluestore_throttle_cost_per_io = 0
-	bluestore_throttle_cost_per_io_hdd = 670000 
-	bluestore_throttle_cost_per_io_ssd = 4000
+       
+        osd_op_num_shards = 1
+        osd_op_num_threads_per_shard = 1 
+        osd_op_queue = mclock_client
+        osd_op_queue_cut_off = low
+        osd_op_queue_mclock_client_op_res = 1000.0
+        osd_op_queue_mclock_client_op_wgt = 500.0
+        osd_op_queue_mclock_client_op_lim = 0.0
+                
+        enable_throttle = true	
+	bluestore_throttle_bytes = 785408
+	bluestore_throttle_deferred_bytes = 0
+	bluestore_throttle_cost_per_io = 500
+	bluestore_throttle_cost_per_io_hdd = 0 
+	bluestore_throttle_cost_per_io_ssd = 0
 
 	bluestore fsck on mount = true
         bluestore block create = true
