@@ -15,7 +15,6 @@
 [submodule "src/rocksdb"]
 	path = src/rocksdb
 	url = https://github.com/ceph/rocksdb
-	ignore = dirty
 [submodule "ceph-erasure-code-corpus"]
 	path = ceph-erasure-code-corpus
 	url = https://github.com/ceph/ceph-erasure-code-corpus.git
@@ -36,7 +35,6 @@
 	path = src/lua
 	url = https://github.com/ceph/lua.git
 	branch = lua-5.3-ceph
-	ignore = dirty
 [submodule "src/dpdk"]
 	path = src/dpdk
 	url = https://github.com/ceph/dpdk
@@ -52,3 +50,15 @@
 [submodule "src/rapidjson"]
 	path = src/rapidjson
 	url = https://github.com/ceph/rapidjson
+[submodule "src/c-ares"]
+       path = src/c-ares
+       url = https://github.com/ceph/c-ares.git
+[submodule "src/fmt"]
+       path = src/fmt
+       url = https://github.com/ceph/fmt.git
+[submodule "src/dmclock"]
+       path = src/dmclock
+       url = https://github.com/ceph/dmclock.git
+[submodule "src/seastar"]
+       path = src/seastar
+       url = https://github.com/ceph/seastar.git
