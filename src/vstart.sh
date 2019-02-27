@@ -3,6 +3,8 @@
 # abort on failure
 set -e
 
+CEPH_DEV_DIR=/mnt/ceph
+
 if [ -n "$VSTART_DEST" ]; then
   SRC_PATH=`dirname $0`
   SRC_PATH=`(cd $SRC_PATH; pwd)`
@@ -12,7 +14,7 @@ if [ -n "$VSTART_DEST" ]; then
   CEPH_LIB=${PWD}/lib
 
   CEPH_CONF_PATH=$VSTART_DEST
-  CEPH_DEV_DIR=$VSTART_DEST/dev
+  #CEPH_DEV_DIR=$VSTART_DEST/dev
   CEPH_OUT_DIR=$VSTART_DEST/out
 fi
 
@@ -503,10 +505,10 @@ $DAEMONOPTS
         filestore wbthrottle xfs inodes hard limit = 30
         filestore wbthrottle btrfs ios start flusher = 10
 
-	enable_throttle = false
-        bluestore_throttle_bytes =  67108864
+	enable_throttle = true
+        bluestore_throttle_bytes = 94961664
         bluestore_throttle_deferred_bytes = 134217728
-        bluestore_throttle_cost_per_io = 0
+        bluestore_throttle_cost_per_io = 5000
         bluestore_throttle_cost_per_io_hdd = 670000
         bluestore_throttle_cost_per_io_ssd = 4000
 	
