@@ -3854,6 +3854,8 @@ void BlueStore::_init_logger()
     "Average kv_commiting state latency");
   b.add_time_avg(l_bluestore_state_kv_done_lat, "state_kv_done_lat",
     "Average kv_done state latency");
+  b.add_time_avg(l_bluestore_kv_queue_size, "bluestore_kv_queue_size",
+    "Average bluestore kv_queue size");
   b.add_time_avg(l_bluestore_state_deferred_queued_lat, "state_deferred_queued_lat",
     "Average deferred_queued state latency");
   b.add_time_avg(l_bluestore_state_deferred_aio_wait_lat, "state_deferred_aio_wait_lat",
@@ -7932,6 +7934,7 @@ void BlueStore::_txc_state_proc(TransContext *txc)
       {
 	std::lock_guard<std::mutex> l(kv_lock);
 	kv_queue.push_back(txc);
+        //logger->inc(l_bluestore_kv_queue_size); 
 	kv_cond.notify_one();
 	if (txc->state != TransContext::STATE_KV_SUBMITTED) {
 	  kv_queue_unsubmitted.push_back(txc);
@@ -8452,6 +8455,7 @@ void BlueStore::_kv_stop()
 
 void BlueStore::_kv_sync_thread()
 {
+  logger->get(l_bluestore_kv_queue_size);
   dout(10) << __func__ << " start" << dendl;
   std::unique_lock<std::mutex> l(kv_lock);
   assert(!kv_sync_started);
@@ -9011,7 +9015,7 @@ int BlueStore::queue_transactions(
     dout(10) << __func__ << " new " << osr << " " << *osr << dendl;
   }
 
-  // prepare
+  // prepar numbere
   TransContext *txc = _txc_create(osr);
   txc->onreadable = onreadable;
   txc->onreadable_sync = onreadable_sync;

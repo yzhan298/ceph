@@ -66,6 +66,7 @@ enum {
   l_bluestore_state_kv_queued_lat,
   l_bluestore_state_kv_committing_lat,
   l_bluestore_state_kv_done_lat,
+  l_bluestore_kv_queue_size,
   l_bluestore_state_deferred_queued_lat,
   l_bluestore_state_deferred_aio_wait_lat,
   l_bluestore_state_deferred_cleanup_lat,
