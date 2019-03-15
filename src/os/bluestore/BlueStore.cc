@@ -9017,17 +9017,18 @@ int BlueStore::queue_transactions(
   txc->onreadable_sync = onreadable_sync;
   txc->oncommit = ondisk;
 
-  dout(0) << __func__ << "###throttle create txc and set txc->bytes: " << txc->bytes << dendl;
+  dout(0) << __func__ << " ###throttle[1] txc->bytes=" << txc->bytes << ", txc->cost="<< txc->cost << dendl;
   for (vector<Transaction>::iterator p = tls.begin(); p != tls.end(); ++p) {
     (*p).set_osr(osr);
-    dout(0) << __func__ << "###throttle transaction cost: " << (*p).get_num_bytes()
+    dout(0) << __func__ << " ###throttle transaction cost(encoded bytes): " << (*p).get_num_bytes()
     << ", get_num_ops=" << (*p).get_num_ops() << dendl;
     txc->bytes += (*p).get_num_bytes();
     _txc_add_transaction(txc, &(*p));
   }
+  dout(0) << __func__ << " ###throttle[2] from tls txc->bytes: " << txc->bytes << ", txc->cost="<< txc->cost << dendl;
   _txc_calc_cost(txc);
-
-  _txc_write_nodes(txc, txc->t);
+  dout(0) << __func__ << " ###throttle[3] after calculation txc->bytes=" << txc->bytes << ", txc->cost="<< txc->cost << dendl;
+  _txc_write_nodes(txc, txc->t); // set RocksDB transaction t
 
   // journal deferred items
   if (txc->deferred_txn) {
@@ -9039,13 +9040,13 @@ int BlueStore::queue_transactions(
     txc->t->set(PREFIX_DEFERRED, key, bl);
   }
 
-  _txc_finalize_kv(txc, txc->t);
+  _txc_finalize_kv(txc, txc->t); // write pextent to RocksDB
   if (handle)
     handle->suspend_tp_timeout();
 
   utime_t tstart = ceph_clock_now();
   if(cct->_conf->enable_throttle) {
-    dout(0) << __func__ << " ###throttle get[1], get " << txc->cost << " cost"
+    dout(0) << __func__ << " ###throttle[4] get " << txc->cost << " cost"
     << ", state_name=" << txc->get_state_name()<< dendl;
     throttle_bytes.get(txc->cost);
   }
@@ -9069,7 +9070,8 @@ int BlueStore::queue_transactions(
 
   if (handle)
     handle->reset_tp_timeout();
-
+ 
+  // count bluestore txc number 
   logger->inc(l_bluestore_txc);
 
   // execute (start)
