@@ -3854,8 +3854,10 @@ void BlueStore::_init_logger()
     "Average kv_commiting state latency");
   b.add_time_avg(l_bluestore_state_kv_done_lat, "state_kv_done_lat",
     "Average kv_done state latency");
-  b.add_time_avg(l_bluestore_kv_queue_size, "bluestore_kv_queue_size",
+  b.add_u64_counter(l_bluestore_kv_queue_size, "bluestore_kv_queue_size",
     "Average bluestore kv_queue size");
+  b.add_u64_counter(l_bluestore_kv_queue_unsubmitted_size, "bluestore_kv_queue_unsubmitted_size",
+    "Average bluestore kv_queue_unsubmitted size");
   b.add_time_avg(l_bluestore_state_deferred_queued_lat, "state_deferred_queued_lat",
     "Average deferred_queued state latency");
   b.add_time_avg(l_bluestore_state_deferred_aio_wait_lat, "state_deferred_aio_wait_lat",
@@ -7934,10 +7936,12 @@ void BlueStore::_txc_state_proc(TransContext *txc)
       {
 	std::lock_guard<std::mutex> l(kv_lock);
 	kv_queue.push_back(txc);
-        //logger->inc(l_bluestore_kv_queue_size); 
+        logger->inc(l_bluestore_kv_queue_size); 
+        //logger->inc(l_bluestore_kv_queue_size, kv_queue.size());
 	kv_cond.notify_one();
 	if (txc->state != TransContext::STATE_KV_SUBMITTED) {
 	  kv_queue_unsubmitted.push_back(txc);
+          logger->inc(l_bluestore_kv_queue_unsubmitted_size);
 	  ++txc->osr->kv_committing_serially;
 	}
 	if (txc->had_ios)
@@ -8455,7 +8459,6 @@ void BlueStore::_kv_stop()
 
 void BlueStore::_kv_sync_thread()
 {
-  logger->get(l_bluestore_kv_queue_size);
   dout(10) << __func__ << " start" << dendl;
   std::unique_lock<std::mutex> l(kv_lock);
   assert(!kv_sync_started);
@@ -8482,7 +8485,10 @@ void BlueStore::_kv_sync_thread()
 	       << " stable " << deferred_stable_queue.size()
 	       << dendl;
       kv_committing.swap(kv_queue);
+      logger->dec(l_bluestore_kv_queue_size, kv_queue.size());
+      logger->inc(l_bluestore_kv_committing_size);
       kv_submitting.swap(kv_queue_unsubmitted);
+      logger->dec(l_bluestore_kv_queue_unsubmitted_size, kv_queue_unsubmitted.size());
       deferred_done.swap(deferred_done_queue);
       deferred_stable.swap(deferred_stable_queue);
       aios = kv_ios;
