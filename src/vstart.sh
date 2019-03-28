@@ -3,7 +3,9 @@
 # abort on failure
 set -e
 
-CEPH_DEV_DIR=/mnt/ceph
+#CEPH_DEV_DIR=/mnt/ceph
+# start ceph using vstart with raw device (in this case, /dev/sdc)
+DEVICE=/dev/sdc
 
 if [ -n "$VSTART_DEST" ]; then
   SRC_PATH=`dirname $0`
@@ -14,7 +16,7 @@ if [ -n "$VSTART_DEST" ]; then
   CEPH_LIB=${PWD}/lib
 
   CEPH_CONF_PATH=$VSTART_DEST
-  #CEPH_DEV_DIR=$VSTART_DEST/dev
+  CEPH_DEV_DIR=$VSTART_DEST/dev
   CEPH_OUT_DIR=$VSTART_DEST/out
 fi
 
@@ -505,7 +507,7 @@ $DAEMONOPTS
         filestore wbthrottle xfs inodes hard limit = 30
         filestore wbthrottle btrfs ios start flusher = 10
 
-	enable_throttle = true
+	enable_throttle = false
         bluestore_throttle_bytes = 94961664
         bluestore_throttle_deferred_bytes = 134217728
         bluestore_throttle_cost_per_io = 5000
@@ -515,14 +517,24 @@ $DAEMONOPTS
         filestore wbthrottle btrfs ios hard limit = 20
         filestore wbthrottle btrfs inodes hard limit = 30
         osd copyfrom max chunk = 524288
-        bluestore fsck on mount = true
+        ;bluestore fsck on mount = true
         bluestore block create = true
-	bluestore block db path = $CEPH_DEV_DIR/osd\$id/block.db.file
-        bluestore block db size = 67108864
-        bluestore block db create = true
-	bluestore block wal path = $CEPH_DEV_DIR/osd\$id/block.wal.file
-        bluestore block wal size = 1048576000
-        bluestore block wal create = true
+	;bluestore block db path = $CEPH_DEV_DIR/osd\$id/block.db.file
+        ;bluestore block db size = 67108864
+        ;bluestore block db create = true
+	;bluestore block wal path = $CEPH_DEV_DIR/osd\$id/block.wal.file
+        ;bluestore block wal size = 1048576000
+        ;bluestore block wal create = true
+        
+        bluestore block = ${DEVICE}
+        bluestore block path = ${DEVICE}
+        bluestore fsck on mkfs = false
+        bluestore fsck on mount = false
+        bluestore fsck on umount = false
+        bluestore block db path =
+        bluestore block wal path =
+        bluestore block wal create = false
+        bluestore block db create = false
 $COSDDEBUG
 $COSDMEMSTORE
 $COSDSHORT
