@@ -1,7 +1,9 @@
 #!/bin/bash
 
-bs=4194304  #4096 #131072
-os=4194304  #4096
+set -ex
+
+bs=4096 #4194304  #4096 #131072
+os=4096 #4194304  #4096
 qdepth=128
 time=30
 parallel=1
@@ -11,9 +13,11 @@ osd_count=1
 shard_count=2
 temp=/tmp/load-ceph.$$
 
-sudo ../src/stop.sh
-sudo OSD=1 MON=1 MDS=0 MGR=1 ../src/vstart.sh -n -x -d -b
 sudo bin/ceph osd pool delete mybench mybench --yes-i-really-really-mean-it
+sudo ../src/stop.sh
+#sudo OSD=1 MON=1 MDS=0 MGR=1 ../src/vstart.sh -n -x -d -b
+sudo MON=1 OSD=1 MDS=0 ../src/vstart.sh -d -n -x -l -b
+#sudo bin/ceph osd pool delete mybench mybench --yes-i-really-really-mean-it
 #sudo ../src/vstart.sh -k -x -d -b
 
 #create a pool
@@ -61,7 +65,7 @@ time_dump() {
 
 sleep 5
 
-samples=$(expr $time / 2 - 3 | bc -l)
+samples=5 #$(expr $time / 2 - 3 | bc -l)
 time_dump $samples 5 > dump.result &
 
 #rados bench
