@@ -1,0 +1,8 @@
+# resize partition
+1. sudo fdisk /dev/sda. delete sda1,sda2,sda3,sda4, and create a new primary partition sda1 
+2. sudo reboot
+3. sudo resize2fs /dev/sda1
+
+https://askubuntu.com/questions/66000/how-to-merge-partitions
+https://askubuntu.com/questions/329875/root-partition-size-remains-same-after-partition-resize-with-gparted
+
