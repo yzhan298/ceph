@@ -1,5 +1,6 @@
 #!/bin/bash
 
+sudo bin/ceph osd pool delete mybench mybench --yes-i-really-really-mean-it
 sudo ../src/stop.sh
 #mount osd to the drive
 #sudo mount -t xfs /dev/sdb1 ~/ceph/build/dev/osd0/

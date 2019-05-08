@@ -5,7 +5,7 @@ set -e
 
 #CEPH_DEV_DIR=/mnt/ceph
 # start ceph using vstart with raw device (in this case, /dev/sdc)
-DEVICE=/dev/sdc
+DEVICE=/dev/sdb
 
 if [ -n "$VSTART_DEST" ]; then
   SRC_PATH=`dirname $0`

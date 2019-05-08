@@ -4,8 +4,8 @@
 
 bs=4096 #4k: 4096 #128k: 131072 #4m: 4194304
 os=4096 #4194304  #4096
-qdepth=200
-time=30
+qdepth=$1
+time=60
 parallel=1
 
 run_name=t_test
@@ -15,12 +15,12 @@ temp=/tmp/load-ceph.$$
 
 CURRENTDATE=`date +"%Y-%m-%d %T"`
 #DATA_OUT_FILE="res_${qdepth}_${time}.csv"
-DATA_OUT_FILE="result.csv"
+DATA_OUT_FILE="result_hdd.csv"
 
 sudo bin/ceph osd pool delete mybench mybench --yes-i-really-really-mean-it
 sudo ../src/stop.sh
 #sudo OSD=1 MON=1 MDS=0 MGR=1 ../src/vstart.sh -n -x -d -b
-sudo MON=1 OSD=1 MDS=0 ../src/vstart.sh -d -n -x -l -b
+sudo MON=1 OSD=1 MDS=0 ../src/vstart.sh -n -x -l -b
 #sudo bin/ceph osd pool delete mybench mybench --yes-i-really-really-mean-it
 #sudo ../src/vstart.sh -k -x -d -b
 
@@ -61,6 +61,8 @@ do_dump() {
     state_io_done_lat=$(jq ".bluestore.state_io_done_lat.avgtime" $dump_bluestore)
     #echo "#bluestore_kv_lat : ${kv_lat}"
   done  
+  #rados_bench_thp=
+  #rados_bench_lat=
   #printf "%s\n" ${CURRENTDATE} |  paste -sd ',' >> ${DATA_OUT_FILE}
   #printf '%s\n' "bs" "runtime" "client_qd" "op_thput" "op_lat" "kv_flush_lat" "kv_commit_lat" "kv_lat" "state_prepare_lat" "aio_wait_lat" "io_done_lat" |  paste -sd ',' >> ${DATA_OUT_FILE}
   printf '%s\n' $bs $time $qdepth $op_throughput $op_lat $kv_flush_lat $kv_commit_lat $kv_lat $state_prepare_lat $state_aio_wait_lat $state_io_done_lat | paste -sd ',' >> ${DATA_OUT_FILE}
@@ -84,10 +86,10 @@ samples=$(expr $time / 5 | bc -l)
 #rados bench
 #sudo echo 3 | sudo tee /proc/sys/vm/drop_caches && sudo sync
 #sudo CEPH_ARGS="--log-file log_radosbench --debug-ms 1" bin/rados bench -p mybench -c ceph.conf -b ${bs} -o ${os} -t ${qdepth} ${time} write --no-cleanup
-for p in $(seq $parallel); do
-  sudo bin/rados bench -p mybench -b ${bs} -o ${os} -t ${qdepth} --run-name=${run_name}_${p} ${time} write --no-cleanup &
-done
-#sudo bin/ceph osd pool delete mybench mybench --yes-i-really-really-mean-it
+#for p in $(seq $parallel); do
+#  sudo bin/rados bench -p mybench -b ${bs} -o ${os} -t ${qdepth} --run-name=${run_name}_${p} ${time} write --no-cleanup &
+#done
+sudo bin/rados bench -p mybench -b ${bs} -o ${os} -t ${qdepth} --run-name=${run_name}_${p} ${time} write --no-cleanup > bench.txt
 wait
 do_dump 1 > dump.txt
 echo rados bench finished

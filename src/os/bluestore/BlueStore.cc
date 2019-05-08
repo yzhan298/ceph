@@ -7880,7 +7880,7 @@ void BlueStore::_txc_update_store_statfs(TransContext *txc)
 void BlueStore::_txc_state_proc(TransContext *txc)
 {
   while (true) {
-    dout(10) << __func__ << " txc " << txc
+    dout(0) << __func__ << " txc " << txc
 	     << " " << txc->get_state_name() << dendl;
     switch (txc->state) {
     case TransContext::STATE_PREPARE:
