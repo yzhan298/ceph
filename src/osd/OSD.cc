@@ -3108,6 +3108,11 @@ void OSD::create_logger()
   osd_plb.add_time_avg(l_osd_op_before_dequeue_op_lat, "op_before_dequeue_op_lat",
     "Latency of IO before calling dequeue_op(already dequeued and get PG lock)"); // client io before dequeue_op latency
 
+  osd_plb.add_time_avg(l_osd_time_of_finding_obc_in_do_op, "time_of_finding_obc_in_do_op",
+  "time of finding obc in do_op()");
+  osd_plb.add_time_avg(l_osd_time_of_searching_attr, "time_of_searching_attr",
+  "time of searching attr from backend in get_object_context()");
+
   osd_plb.add_u64_counter(
     l_osd_sop, "subop", "Suboperations");
   osd_plb.add_u64_counter(

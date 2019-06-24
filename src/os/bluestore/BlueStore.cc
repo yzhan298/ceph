@@ -3791,7 +3791,7 @@ int BlueStore::_set_cache_sizes()
     // deal with floating point imprecision
     cache_data_ratio = 0;
   }
-  dout(1) << __func__ << " cache_size " << cache_size
+  dout(0) << __func__ << " cache_size " << cache_size
           << " meta " << cache_meta_ratio
 	  << " kv " << cache_kv_ratio
 	  << " data " << cache_data_ratio
@@ -3841,6 +3841,10 @@ void BlueStore::_init_logger()
   b.add_time_avg(l_bluestore_kv_lat, "kv_lat",
 		 "Average kv_thread sync latency",
 		 "k_l", PerfCountersBuilder::PRIO_INTERESTING);
+
+  b.add_u64(l_bluestore_osr_blocking_count, "bluestore_osr_blocking_count",
+    "counting number of blockings within osr in _txc_finish_io");
+
   b.add_time_avg(l_bluestore_state_prepare_lat, "state_prepare_lat",
     "Average prepare state latency");
   b.add_time_avg(l_bluestore_state_aio_wait_lat, "state_aio_wait_lat",
@@ -8004,8 +8008,9 @@ void BlueStore::_txc_finish_io(TransContext *txc)
   while (p != osr->q.begin()) {
     --p;
     if (p->state < TransContext::STATE_IO_DONE) {
-      dout(20) << __func__ << " " << txc << " blocked by " << &*p << " "
+      dout(0) << __func__ << " " << txc << " blocked by " << &*p << " "
 	       << p->get_state_name() << dendl;
+      logger->inc(l_bluestore_osr_blocking_count);
       return;
     }
     if (p->state > TransContext::STATE_IO_DONE) {
@@ -8536,7 +8541,7 @@ void BlueStore::_kv_sync_thread()
 
       // we will use one final transaction to force a sync
       KeyValueDB::Transaction synct = db->get_transaction();
-
+      //dout(0)<<"###debug synct="<<synct<<", Transaction="<<synct->db<<dendl;
       // increase {nid,blobid}_max?  note that this covers both the
       // case where we are approaching the max and the case we passed
       // it.  in either case, we increase the max in the earlier txn
@@ -8565,6 +8570,7 @@ void BlueStore::_kv_sync_thread()
 	if (txc->state == TransContext::STATE_KV_QUEUED) {
 	  txc->log_state_latency(logger, l_bluestore_state_kv_queued_lat);
 	  int r = cct->_conf->bluestore_debug_omit_kv_commit ? 0 : db->submit_transaction(txc->t);
+          dout(0)<<"###debug txc->t="<<txc->t<<dendl;
 	  assert(r == 0);
 	  _txc_applied_kv(txc);
 	  --txc->osr->kv_committing_serially;

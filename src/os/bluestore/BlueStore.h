@@ -60,6 +60,10 @@ enum {
   l_bluestore_kv_flush_lat,
   l_bluestore_kv_commit_lat,
   l_bluestore_kv_lat,
+
+  l_bluestore_osr_blocking_count, // count blockings in OpSequencer
+
+
   l_bluestore_state_prepare_lat,
   l_bluestore_state_aio_wait_lat,
   l_bluestore_state_io_done_lat,

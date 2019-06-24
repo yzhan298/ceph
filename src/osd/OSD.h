@@ -97,6 +97,9 @@ enum {
   l_osd_op_before_queue_op_lat,
   l_osd_op_before_dequeue_op_lat,
 
+  l_osd_time_of_finding_obc_in_do_op,
+  l_osd_time_of_searching_attr,
+
   l_osd_sop,
   l_osd_sop_inb,
   l_osd_sop_lat,

@@ -694,6 +694,7 @@ bool PrimaryLogPG::maybe_await_blocked_snapset(
   obc = object_contexts.lookup(hoid.get_head());
   if (obc) {
     if (obc->is_blocked()) {
+      dout(0)<<__func__<<"obc is blocked"<<dendl;
       wait_for_blocked_object(obc->obs.oi.soid, op);
       return true;
     } else {
@@ -1978,6 +1979,8 @@ void PrimaryLogPG::do_op(OpRequestRef& op)
   // bypass all full checks anyway.  If this op isn't write or
   // read-ordered, we skip.
   // FIXME: we exclude mds writes for now.
+  dout(10)<<__func__<<" ###debug info.history.last_epoch_marked_full="<<info.history.last_epoch_marked_full
+  <<", m->get_map_epoch()="<<m->get_map_epoch()<<dendl;
   if (write_ordered && !(m->get_source().is_mds() ||
 			 m->has_flag(CEPH_OSD_FLAG_FULL_TRY) ||
 			 m->has_flag(CEPH_OSD_FLAG_FULL_FORCE)) &&
@@ -2142,10 +2145,13 @@ void PrimaryLogPG::do_op(OpRequestRef& op)
     return;
   }
 
+  utime_t before_find_obc = ceph_clock_now();
   int r = find_object_context(
     oid, &obc, can_create,
     m->has_flag(CEPH_OSD_FLAG_MAP_SNAP_CLONE),
     &missing_oid);
+  utime_t after_find_obc = ceph_clock_now();
+  osd->logger->tinc(l_osd_time_of_finding_obc_in_do_op, after_find_obc - before_find_obc);
 
   if (r == -EAGAIN) {
     // If we're not the primary of this OSD, we just return -EAGAIN. Otherwise,
@@ -9864,7 +9870,9 @@ ObjectContextRef PrimaryLogPG::get_object_context(
       assert(attrs->count(OI_ATTR));
       bv = attrs->find(OI_ATTR)->second;
     } else {
+      utime_t before_get_attr = ceph_clock_now();
       int r = pgbackend->objects_get_attr(soid, OI_ATTR, &bv);
+      osd->logger->tinc(l_osd_time_of_searching_attr, ceph_clock_now()-before_get_attr);
       if (r < 0) {
 	if (!can_create) {
 	  dout(10) << __func__ << ": no obc for soid "
