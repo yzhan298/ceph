@@ -15,7 +15,7 @@ temp=/tmp/load-ceph.$$
 
 CURRENTDATE=`date +"%Y-%m-%d %T"`
 #DATA_OUT_FILE="res_${qdepth}_${time}.csv"
-DATA_OUT_FILE="result_hdd.csv"
+DATA_OUT_FILE="result_ssd.csv"
 
 sudo bin/ceph osd pool delete mybench mybench --yes-i-really-really-mean-it
 sudo ../src/stop.sh
@@ -47,7 +47,9 @@ do_dump() {
     op_bw=$(jq ".osd.op_in_bytes" $dump_osd) # client io throughput 
     op_throughput=$(expr $op_bw/1048576/$time | bc -l) # client io throughput
     #echo "#op_latency : $op_lat, op_throughput=$(expr $op_bw/1048576/$time | bc -l)"
-
+    op_time_of_finding_obc_in_do_op=$(jq ".osd.time_of_finding_obc_in_do_op.avgtime" $dump_osd) # time of finding object context (metadata)
+    op_prepare_lat=$(jq ".osd.op_prepare_latency.avgtime" $dump_osd) # time from dequeue to end of execute_ctx()
+    
     
     dump_bluestore="dump.bs.${count}"
     #sudo bin/ceph daemon osd.0 perf dump bluestore commit_lat 2>/dev/null | tee $dump_bluestore
@@ -59,13 +61,17 @@ do_dump() {
     state_prepare_lat=$(jq ".bluestore.state_prepare_lat.avgtime" $dump_bluestore)
     state_aio_wait_lat=$(jq ".bluestore.state_aio_wait_lat.avgtime" $dump_bluestore)
     state_io_done_lat=$(jq ".bluestore.state_io_done_lat.avgtime" $dump_bluestore)
+    kv_queue_size=$(jq ".bluestore.bluestore_kv_queue_size" $dump_bluestore) # the total kv_queue size
+    osr_blocking_count=$(jq ".bluestore.bluestore_osr_blocking_count" $dump_bluestore) # # of blockings within osr
+    bs_commit_lat=$(jq ".bluestore.commit_lat.avgtime" $dump_bluestore) # time from TransContext’s creation to destruction
+    
     #echo "#bluestore_kv_lat : ${kv_lat}"
   done  
   #rados_bench_thp=
   #rados_bench_lat=
   #printf "%s\n" ${CURRENTDATE} |  paste -sd ',' >> ${DATA_OUT_FILE}
   #printf '%s\n' "bs" "runtime" "client_qd" "op_thput" "op_lat" "kv_flush_lat" "kv_commit_lat" "kv_lat" "state_prepare_lat" "aio_wait_lat" "io_done_lat" |  paste -sd ',' >> ${DATA_OUT_FILE}
-  printf '%s\n' $bs $time $qdepth $op_throughput $op_lat $kv_flush_lat $kv_commit_lat $kv_lat $state_prepare_lat $state_aio_wait_lat $state_io_done_lat | paste -sd ',' >> ${DATA_OUT_FILE}
+  printf '%s\n' $bs $time $qdepth $op_throughput $op_lat $op_time_of_finding_obc_in_do_op $op_prepare_lat $kv_flush_lat $kv_commit_lat $kv_lat $state_prepare_lat $state_aio_wait_lat $state_io_done_lat $kv_queue_size $osr_blocking_count $bs_commit_lat | paste -sd ',' >> ${DATA_OUT_FILE}
 }
 
 time_dump() {
