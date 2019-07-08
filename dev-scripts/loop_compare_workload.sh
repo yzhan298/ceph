@@ -10,7 +10,7 @@
 #  ./run_rados_single_dump.sh $qdepth
 #done
 
-for qdepth in {400..1000..10}
+for qdepth in {100..500..100}
 do
   ./run_rados_single_dump.sh $qdepth
 done

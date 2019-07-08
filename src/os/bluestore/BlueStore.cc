@@ -8489,8 +8489,10 @@ void BlueStore::_kv_sync_thread()
 	       << " deferred done " << deferred_done_queue.size()
 	       << " stable " << deferred_stable_queue.size()
 	       << dendl;
-      kv_committing.swap(kv_queue);
       logger->dec(l_bluestore_kv_queue_size, kv_queue.size());
+      kv_committing.swap(kv_queue);
+      dout(0)<<"### kv_queue_size="<<kv_queue.size()<<dendl;
+      //logger->dec(l_bluestore_kv_queue_size, kv_queue.size());
       //logger->inc(l_bluestore_kv_committing_size);
       kv_submitting.swap(kv_queue_unsubmitted);
       logger->dec(l_bluestore_kv_queue_unsubmitted_size, kv_queue_unsubmitted.size());

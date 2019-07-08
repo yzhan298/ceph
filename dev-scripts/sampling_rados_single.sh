@@ -8,24 +8,21 @@ qdepth=$1
 time=60
 parallel=1
 
-run_name=t_test
+run_name=t_test_${qdepth}
 osd_count=1
 shard_count=2
 temp=/tmp/load-ceph.$$
 
 CURRENTDATE=`date +"%Y-%m-%d %T"`
 #DATA_OUT_FILE="res_${qdepth}_${time}.csv"
-DATA_OUT_FILE="result_ssd.csv"
+DATA_OUT_FILE="result_ssd_${qdepth}.csv"
 
-sudo bin/ceph osd pool delete mybench mybench --yes-i-really-really-mean-it
-sudo ../src/stop.sh
-#sudo OSD=1 MON=1 MDS=0 MGR=1 ../src/vstart.sh -n -x -d -b
-sudo MON=1 OSD=1 MDS=0 ../src/vstart.sh -n -x -l -b
 #sudo bin/ceph osd pool delete mybench mybench --yes-i-really-really-mean-it
-#sudo ../src/vstart.sh -k -x -d -b
+#sudo ../src/stop.sh
+#sudo MON=1 OSD=1 MDS=0 ../src/vstart.sh -n -x -l -b
 
 #create a pool
-sudo bin/ceph osd pool create mybench 150 150
+#sudo bin/ceph osd pool create mybench 150 150
 
 
 do_dump() {
@@ -45,7 +42,9 @@ do_dump() {
     #sudo bin/ceph daemon osd.0 perf reset osd >/dev/null 2>/dev/null
     op_lat=$(jq ".osd.op_latency.avgtime" $dump_osd) # client io latency
     op_bw=$(jq ".osd.op_in_bytes" $dump_osd) # client io throughput 
-    op_throughput=$(expr $op_bw/1048576/$time | bc -l) # client io throughput
+    #TODO: FIX the op_throughput, it's incorrect in current set up.
+    #op_throughput=$(expr $op_bw/1048576/$time | bc -l) # client io throughput
+    op_throughput=$(expr )
     #echo "#op_latency : $op_lat, op_throughput=$(expr $op_bw/1048576/$time | bc -l)"
     op_time_of_finding_obc_in_do_op=$(jq ".osd.time_of_finding_obc_in_do_op.avgtime" $dump_osd) # time of finding object context (metadata)
     op_prepare_lat=$(jq ".osd.op_prepare_latency.avgtime" $dump_osd) # time from dequeue to end of execute_ctx()
@@ -86,16 +85,14 @@ time_dump() {
 
 sleep 5
 
-samples=$(expr $time / 5 | bc -l)
-#time_dump $samples 5 > dump.result &
+#samples=$(expr $time / 5 | bc -l) # uncomment this line if time_dump is disabled.
+samples=$(expr $time/2 | bc -l)
+time_dump $samples 2 > dump.result &
 
 #rados bench
 #sudo echo 3 | sudo tee /proc/sys/vm/drop_caches && sudo sync
 #sudo CEPH_ARGS="--log-file log_radosbench --debug-ms 1" bin/rados bench -p mybench -c ceph.conf -b ${bs} -o ${os} -t ${qdepth} ${time} write --no-cleanup
-#for p in $(seq $parallel); do
-#  sudo bin/rados bench -p mybench -b ${bs} -o ${os} -t ${qdepth} --run-name=${run_name}_${p} ${time} write --no-cleanup &
-#done
-sudo bin/rados bench -p mybench -b ${bs} -o ${os} -t ${qdepth} --run-name=${run_name}_${p} ${time} write --no-cleanup > bench.txt
+sudo bin/rados bench -p mybench -b ${bs} -o ${os} -t ${qdepth} --run-name=${run_name}_${p} ${time} write --no-cleanup > rados_bench_${qdepth}.txt
 wait
-do_dump 1 > dump.txt
+#do_dump 1 > dump.txt
 echo rados bench finished
