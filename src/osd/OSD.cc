@@ -9748,6 +9748,8 @@ bool OSD::op_is_discardable(const MOSDOp *op)
 void OSD::enqueue_op(spg_t pg, OpRequestRef& op, epoch_t epoch)
 {
   utime_t latency = ceph_clock_now() - op->get_req()->get_recv_stamp();
+  utime_t enq_op_time = ceph_clock_now();
+  op->set_enqueued_time(enq_op_time);
   dout(15) << "enqueue_op " << op << " prio " << op->get_req()->get_priority()
 	   << " cost " << op->get_req()->get_cost()
 	   << " latency " << latency
@@ -9759,6 +9761,7 @@ void OSD::enqueue_op(spg_t pg, OpRequestRef& op, epoch_t epoch)
   op->mark_queued_for_pg();
   logger->tinc(l_osd_op_before_queue_op_lat, latency);
   op_shardedwq.queue(make_pair(pg, PGQueueable(op, epoch)));
+  //op_shardedwq.opwq_logger->inc(l_opwq_size,1);
 }
 
 
@@ -9775,6 +9778,7 @@ void OSD::dequeue_op(
 
   utime_t now = ceph_clock_now();
   op->set_dequeued_time(now);
+  //opwq_logger->tinc(l_opwq_enq_to_deq_lat, op->get_dequeued_time() - op->get_enqueued_time());
   utime_t latency = now - op->get_req()->get_recv_stamp();
   dout(10) << "dequeue_op " << op << " prio " << op->get_req()->get_priority()
 	   << " cost " << op->get_req()->get_cost()
@@ -10416,6 +10420,13 @@ void OSD::ShardedOpWQ::_process(uint32_t thread_index, heartbeat_handle_d *hb)
     }
   }
   pair<spg_t, PGQueueable> item = sdata->pqueue->dequeue();
+  auto perf_op = item.second.maybe_get_op();
+  if(perf_op) {
+    dout(0)<<"##test1"<<dendl;
+    sdata->opwq_logger->tinc(l_opwq_enq_to_deq_lat, perf_op.get()->get_dequeued_time() - perf_op.get()->get_enqueued_time());
+    sdata->opwq_logger->dec(l_opwq_size,1);
+    dout(0)<<"##test2"<<dendl;
+  }
   if (osd->is_stopping()) {
     sdata->sdata_op_ordering_lock.Unlock();
     return;    // OSD shutdown, discard.
@@ -10608,6 +10619,8 @@ void OSD::ShardedOpWQ::_enqueue(pair<spg_t, PGQueueable> item) {
       item.second.get_owner(),
       priority, cost, item);
   sdata->sdata_op_ordering_lock.Unlock();
+  //opwq
+  sdata->opwq_logger->inc(l_opwq_size);
 
   sdata->sdata_lock.Lock();
   sdata->sdata_cond.SignalOne();

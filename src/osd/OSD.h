@@ -63,7 +63,6 @@ using namespace std;
 
 #define CEPH_OSD_PROTOCOL    10 /* cluster internal */
 
-
 enum {
   l_osd_first = 10000,
   l_osd_op_wip,
@@ -220,6 +219,14 @@ enum {
   rs_notrecovering_latency,
   rs_last,
 };
+
+enum{
+  l_opwq_first = 30000,
+  l_opwq_enq_to_deq_lat, 
+  l_opwq_size,
+  l_opwq_last,
+};
+
 
 class Messenger;
 class Message;
@@ -1229,6 +1236,7 @@ protected:
   MgrClient   mgrc;
   PerfCounters      *logger;
   PerfCounters      *recoverystate_perf;
+  //PerfCounters *&opwq_logger;
   ObjectStore *store;
 #ifdef HAVE_LIBFUSE
   FuseStore *fuse_store = nullptr;
@@ -1650,7 +1658,8 @@ private:
     struct ShardData {
       Mutex sdata_lock;
       Cond sdata_cond;
-
+      PerfCounters *opwq_logger; // perfcounter for one shard
+      int opshard_id = 0; // shard id for one shard
       Mutex sdata_op_ordering_lock;   ///< protects all members below
 
       OSDMapRef waiting_for_pg_osdmap;
@@ -1690,12 +1699,12 @@ private:
       }
 
       ShardData(
-	string lock_name, string ordering_lock,
+	string lock_name, string ordering_lock, int opshard_id,
 	uint64_t max_tok_per_prio, uint64_t min_cost, CephContext *cct,
 	io_queue opqueue)
 	: sdata_lock(lock_name.c_str(), false, true, false, cct),
-	  sdata_op_ordering_lock(ordering_lock.c_str(), false, true,
-				 false, cct) {
+	  sdata_op_ordering_lock(ordering_lock.c_str(), false, true,false, cct),
+          opshard_id(opshard_id) {
 	if (opqueue == io_queue::weightedpriority) {
 	  pqueue = std::unique_ptr
 	    <WeightedPriorityQueue<pair<spg_t,PGQueueable>,entity_inst_t>>(
@@ -1713,6 +1722,12 @@ private:
 	  pqueue = std::unique_ptr
 	    <ceph::mClockClientQueue>(new ceph::mClockClientQueue(cct));
 	}
+        // add perfcounter to measure pqueue status
+        PerfCountersBuilder plb(cct,"opshard"+std::to_string(opshard_id), l_opwq_first, l_opwq_last);
+        plb.add_time_avg(l_opwq_enq_to_deq_lat,"opwq_enq_to_deq_lat","average time spend in the pqueue for each op");
+        plb.add_u64_counter(l_opwq_size, "opwq_size","size of sharded op queue(each queue)");
+        opwq_logger = plb.create_perf_counters();
+        cct->get_perfcounters_collection()->add(opwq_logger);
       }
     }; // struct ShardData
 
@@ -1736,7 +1751,7 @@ private:
 	snprintf(order_lock, sizeof(order_lock), "%s.%d",
 		 "OSD:ShardedOpWQ:order:", i);
 	ShardData* one_shard = new ShardData(
-	  lock_name, order_lock,
+	  lock_name, order_lock, i,
 	  osd->cct->_conf->osd_op_pq_max_tokens_per_priority, 
 	  osd->cct->_conf->osd_op_pq_min_cost, osd->cct, osd->op_queue);
 	shard_list.push_back(one_shard);
