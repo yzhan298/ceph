@@ -1,12 +1,13 @@
 #!/bin/bash
 
-#set -ex
+set -ex
 
-bs=4096 #4k: 4096 #128k: 131072 #4m: 4194304
-os=4096 #4194304  #4096
+bs=131072 #4k: 4096 #128k: 131072 #4m: 4194304
+os=131072 #4194304  #4096
 qdepth=$1
-time=60
+time=10
 parallel=1
+sampling_time=5 # second(s)
 
 run_name=t_test_${qdepth}
 osd_count=1
@@ -15,7 +16,7 @@ temp=/tmp/load-ceph.$$
 
 CURRENTDATE=`date +"%Y-%m-%d %T"`
 #DATA_OUT_FILE="res_${qdepth}_${time}.csv"
-DATA_OUT_FILE="result_ssd_${qdepth}.csv"
+DATA_OUT_FILE="result_ssd.csv"
 
 #sudo bin/ceph osd pool delete mybench mybench --yes-i-really-really-mean-it
 #sudo ../src/stop.sh
@@ -30,12 +31,33 @@ do_dump() {
   #dump sharded op queue size
   for o in $(seq 0 $(expr $osd_count - 1)) ; do
     dump_opq="dump.op_queue.${count}"
-    sudo bin/ceph daemon osd.0 dump_op_pq_state 2>/dev/null | tee $dump_opq
+    #sudo bin/ceph daemon osd.0 dump_op_pq_state 2>/dev/null | tee $dump_opq
     #sudo bin/ceph daemon osd.0 dump_op_pq_state 2>/dev/null | tee $dump_opq | jq 'map(.size)' >$temp
     #for  s in $(seq 0 $(expr $shard_count - 1)) ; do
     #  size=$(jq ".[${s}]" $temp)
     #  echo "${count}.${o}.${s} : ${size}"
     #done
+    dump_op_queue="dump.op_queue.${count}"
+    sudo bin/ceph daemon osd.0 perf dump 2>/dev/null | tee $dump_op_queue
+    op_queue_0_size=$(jq ".opshard0.opwq_size" $dump_op_queue)
+    op_queue_1_size=$(jq ".opshard1.opwq_size" $dump_op_queue)
+    op_queue_2_size=$(jq ".opshard2.opwq_size" $dump_op_queue)
+    op_queue_3_size=$(jq ".opshard3.opwq_size" $dump_op_queue)
+    op_queue_4_size=$(jq ".opshard4.opwq_size" $dump_op_queue)
+    op_queue_5_size=$(jq ".opshard5.opwq_size" $dump_op_queue)
+    op_queue_6_size=$(jq ".opshard6.opwq_size" $dump_op_queue)
+    op_queue_7_size=$(jq ".opshard7.opwq_size" $dump_op_queue)    
+
+    op_queue_0_lat=$(jq ".opshard0.opwq_enq_to_deq_lat.avgtime" $dump_op_queue)
+    op_queue_1_lat=$(jq ".opshard1.opwq_enq_to_deq_lat.avgtime" $dump_op_queue)
+    op_queue_2_lat=$(jq ".opshard2.opwq_enq_to_deq_lat.avgtime" $dump_op_queue)
+    op_queue_3_lat=$(jq ".opshard3.opwq_enq_to_deq_lat.avgtime" $dump_op_queue)
+    op_queue_4_lat=$(jq ".opshard4.opwq_enq_to_deq_lat.avgtime" $dump_op_queue)
+    op_queue_5_lat=$(jq ".opshard5.opwq_enq_to_deq_lat.avgtime" $dump_op_queue)
+    op_queue_6_lat=$(jq ".opshard6.opwq_enq_to_deq_lat.avgtime" $dump_op_queue)
+    op_queue_7_lat=$(jq ".opshard7.opwq_enq_to_deq_lat.avgtime" $dump_op_queue)
+    op_queue_lat_sum=`expr $op_queue_0_lat+$op_queue_1_lat+$op_queue_2_lat+$op_queue_3_lat+$op_queue_4_lat+$op_queue_5_lat+$op_queue_6_lat+$op_queue_7_lat | bc -l`
+    op_queue_lat_avg=`expr $op_queue_lat_sum/8 | bc -l`
     
     dump_osd="dump.osd.${count}"
     sudo bin/ceph daemon osd.0 perf dump osd 2>/dev/null | tee $dump_osd
@@ -44,7 +66,7 @@ do_dump() {
     op_bw=$(jq ".osd.op_in_bytes" $dump_osd) # client io throughput 
     #TODO: FIX the op_throughput, it's incorrect in current set up.
     #op_throughput=$(expr $op_bw/1048576/$time | bc -l) # client io throughput
-    op_throughput=$(expr )
+    op_throughput=$(expr $op_bw/1048576/$sampling_time | bc -l) # client io throughput
     #echo "#op_latency : $op_lat, op_throughput=$(expr $op_bw/1048576/$time | bc -l)"
     op_time_of_finding_obc_in_do_op=$(jq ".osd.time_of_finding_obc_in_do_op.avgtime" $dump_osd) # time of finding object context (metadata)
     op_prepare_lat=$(jq ".osd.op_prepare_latency.avgtime" $dump_osd) # time from dequeue to end of execute_ctx()
@@ -70,7 +92,7 @@ do_dump() {
   #rados_bench_lat=
   #printf "%s\n" ${CURRENTDATE} |  paste -sd ',' >> ${DATA_OUT_FILE}
   #printf '%s\n' "bs" "runtime" "client_qd" "op_thput" "op_lat" "kv_flush_lat" "kv_commit_lat" "kv_lat" "state_prepare_lat" "aio_wait_lat" "io_done_lat" |  paste -sd ',' >> ${DATA_OUT_FILE}
-  printf '%s\n' $bs $time $qdepth $op_throughput $op_lat $op_time_of_finding_obc_in_do_op $op_prepare_lat $kv_flush_lat $kv_commit_lat $kv_lat $state_prepare_lat $state_aio_wait_lat $state_io_done_lat $kv_queue_size $osr_blocking_count $bs_commit_lat $bs_submit_lat | paste -sd ',' >> ${DATA_OUT_FILE}
+  printf '%s\n' $bs $time $qdepth $op_throughput $op_lat $op_time_of_finding_obc_in_do_op $op_prepare_lat $kv_flush_lat $kv_commit_lat $kv_lat $state_prepare_lat $state_aio_wait_lat $state_io_done_lat $kv_queue_size $bs_commit_lat $bs_submit_lat $op_queue_lat_avg $op_queue_0_size $op_queue_1_size $op_queue_2_size $op_queue_3_size $op_queue_4_size $op_queue_5_size $op_queue_6_size $op_queue_7_size $op_queue_0_lat $op_queue_1_lat $op_queue_2_lat $op_queue_3_lat $op_queue_4_lat $op_queue_5_lat $op_queue_6_lat $op_queue_7_lat   | paste -sd ',' >> ${DATA_OUT_FILE}
 }
 
 time_dump() {
@@ -86,8 +108,8 @@ time_dump() {
 sleep 5
 
 #samples=$(expr $time / 5 | bc -l) # uncomment this line if time_dump is disabled.
-samples=$(expr $time/2 | bc -l)
-time_dump $samples 2 > dump.result &
+samples=$(expr $time/6 | bc -l)
+time_dump $samples $sampling_time > dump.result &
 
 #rados bench
 #sudo echo 3 | sudo tee /proc/sys/vm/drop_caches && sudo sync

@@ -9778,6 +9778,7 @@ void OSD::dequeue_op(
 
   utime_t now = ceph_clock_now();
   op->set_dequeued_time(now);
+  dout(0)<<"test2 dequeue_time="<<op->get_dequeued_time()<<dendl;
   //opwq_logger->tinc(l_opwq_enq_to_deq_lat, op->get_dequeued_time() - op->get_enqueued_time());
   utime_t latency = now - op->get_req()->get_recv_stamp();
   dout(10) << "dequeue_op " << op << " prio " << op->get_req()->get_priority()
@@ -10420,13 +10421,14 @@ void OSD::ShardedOpWQ::_process(uint32_t thread_index, heartbeat_handle_d *hb)
     }
   }
   pair<spg_t, PGQueueable> item = sdata->pqueue->dequeue();
-  auto perf_op = item.second.maybe_get_op();
+  //sdata->opwq_logger->dec(l_opwq_size,1);
+  /*auto perf_op = item.second.maybe_get_op();
   if(perf_op) {
-    dout(0)<<"##test1"<<dendl;
+    dout(0)<<"##test1 dequeue_time="<<perf_op.get()->get_dequeued_time()<<", enqueue_time="<<perf_op.get()->get_enqueued_time()<<dendl;
     sdata->opwq_logger->tinc(l_opwq_enq_to_deq_lat, perf_op.get()->get_dequeued_time() - perf_op.get()->get_enqueued_time());
     sdata->opwq_logger->dec(l_opwq_size,1);
-    dout(0)<<"##test2"<<dendl;
-  }
+    dout(0)<<"##test3"<<dendl;
+  }*/
   if (osd->is_stopping()) {
     sdata->sdata_op_ordering_lock.Unlock();
     return;    // OSD shutdown, discard.
@@ -10585,6 +10587,14 @@ void OSD::ShardedOpWQ::_process(uint32_t thread_index, heartbeat_handle_d *hb)
   ThreadPool::TPHandle tp_handle(osd->cct, hb, timeout_interval,
 				 suicide_interval);
   qi->run(osd, pg, tp_handle);
+  
+  auto perf_op = qi->maybe_get_op();
+  if(perf_op) {
+    dout(0)<<"##test1 dequeue_time="<<perf_op.get()->get_dequeued_time()<<", enqueue_time="<<perf_op.get()->get_enqueued_time()<<dendl;
+    sdata->opwq_logger->tinc(l_opwq_enq_to_deq_lat, perf_op.get()->get_dequeued_time() - perf_op.get()->get_enqueued_time());
+    sdata->opwq_logger->dec(l_opwq_size,1);
+    dout(0)<<"##test3"<<dendl;
+  }
 
   {
 #ifdef WITH_LTTNG
@@ -10620,7 +10630,7 @@ void OSD::ShardedOpWQ::_enqueue(pair<spg_t, PGQueueable> item) {
       priority, cost, item);
   sdata->sdata_op_ordering_lock.Unlock();
   //opwq
-  sdata->opwq_logger->inc(l_opwq_size);
+  sdata->opwq_logger->inc(l_opwq_size,1);
 
   sdata->sdata_lock.Lock();
   sdata->sdata_cond.SignalOne();
