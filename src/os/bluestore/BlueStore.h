@@ -62,7 +62,7 @@ enum {
   l_bluestore_kv_lat,
 
   l_bluestore_osr_blocking_count, // count blockings in OpSequencer
-
+  l_bluestore_kv_queue_enq_to_deq_lat, // avg time spent in kv_queue
 
   l_bluestore_state_prepare_lat,
   l_bluestore_state_aio_wait_lat,
@@ -1576,6 +1576,38 @@ public:
     uint64_t seq = 0;
     utime_t start;
     utime_t last_stamp;
+    utime_t kv_queue_enq_time;
+    utime_t kv_queue_deq_time;
+    utime_t kv_committing_enq_time;
+    utime_t kv_committing_deq_time;
+    
+    utime_t get_kv_queue_dequeued_time() const {
+      return kv_queue_deq_time;
+    }
+    void set_kv_queue_dequeued_time(utime_t deq_time) {
+      kv_queue_deq_time = deq_time;
+    }
+
+    utime_t get_kv_queue_enqueued_time() const {
+      return kv_queue_enq_time;
+    }
+    void set_kv_queue_enqueued_time(utime_t enq_time) {
+      kv_queue_enq_time = enq_time;
+    }
+
+    utime_t get_kv_committing_dequeued_time() const {
+      return kv_committing_deq_time;
+    }
+    void set_kv_committing_dequeued_time(utime_t deq_time) {
+      kv_committing_deq_time = deq_time;
+    }
+
+    utime_t get_kv_committing_enqueued_time() const {
+      return kv_committing_enq_time;
+    }
+    void set_kv_committing_enqueued_time(utime_t enq_time) {
+      kv_committing_enq_time = enq_time;
+    } 
 
     uint64_t last_nid = 0;     ///< if non-zero, highest new nid we allocated
     uint64_t last_blobid = 0;  ///< if non-zero, highest new blobid we allocated

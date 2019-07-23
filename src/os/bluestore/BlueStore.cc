@@ -3844,6 +3844,7 @@ void BlueStore::_init_logger()
 
   b.add_u64(l_bluestore_osr_blocking_count, "bluestore_osr_blocking_count",
     "counting number of blockings within osr in _txc_finish_io");
+  b.add_time_avg(l_bluestore_kv_queue_enq_to_deq_lat, "kv_queue_enq_to_deq_lat", "avg time spent in kv_queue.");
 
   b.add_time_avg(l_bluestore_state_prepare_lat, "state_prepare_lat",
     "Average prepare state latency");
@@ -7941,6 +7942,9 @@ void BlueStore::_txc_state_proc(TransContext *txc)
 	std::lock_guard<std::mutex> l(kv_lock);
 	kv_queue.push_back(txc);
         logger->inc(l_bluestore_kv_queue_size); 
+        // enqueue time
+        utime_t now = ceph_clock_now();
+        txc->set_kv_queue_enqueued_time(now); 
         //logger->inc(l_bluestore_kv_queue_size, kv_queue.size());
 	kv_cond.notify_one();
 	if (txc->state != TransContext::STATE_KV_SUBMITTED) {
@@ -8490,6 +8494,14 @@ void BlueStore::_kv_sync_thread()
 	       << " stable " << deferred_stable_queue.size()
 	       << dendl;
       logger->dec(l_bluestore_kv_queue_size, kv_queue.size());
+      //set dequeue time
+      for (auto txc : kv_queue) {
+        utime_t now = ceph_clock_now();
+        txc->set_kv_queue_dequeued_time(now);
+        utime_t lat = txc->get_kv_queue_dequeued_time() - txc->get_kv_queue_enqueued_time();
+        logger->tinc(l_bluestore_kv_queue_enq_to_deq_lat, lat);
+      }
+      
       kv_committing.swap(kv_queue);
       dout(0)<<"### kv_queue_size="<<kv_queue.size()<<dendl;
       //logger->dec(l_bluestore_kv_queue_size, kv_queue.size());
