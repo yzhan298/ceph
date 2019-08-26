@@ -3845,6 +3845,7 @@ void BlueStore::_init_logger()
   b.add_u64(l_bluestore_osr_blocking_count, "bluestore_osr_blocking_count",
     "counting number of blockings within osr in _txc_finish_io");
   b.add_time_avg(l_bluestore_kv_queue_enq_to_deq_lat, "kv_queue_enq_to_deq_lat", "avg time spent in kv_queue.");
+  b.add_time_avg(l_bluestore_kv_committing_enq_to_deq_lat, "kv_committing_enq_to_deq_lat","avg time spent in kv_committing.");
 
   b.add_time_avg(l_bluestore_state_prepare_lat, "state_prepare_lat",
     "Average prepare state latency");
@@ -7854,7 +7855,7 @@ void BlueStore::_txc_calc_cost(TransContext *txc)
   }
   auto cost = throttle_cost_per_io.load();
   txc->cost = ios * cost + txc->bytes;
-  dout(0) << __func__ << " ###throttle" << txc << " cost " << txc->cost << " ("
+  dout(10) << __func__ << " ###throttle" << txc << " cost " << txc->cost << " ("
 	   << ios << " ios * " << cost << " + " << txc->bytes
 	   << " bytes)" << dendl;
 }
@@ -8487,14 +8488,19 @@ void BlueStore::_kv_sync_thread()
       deque<TransContext*> kv_submitting;
       deque<DeferredBatch*> deferred_done, deferred_stable;
       uint64_t aios = 0, costs = 0;
-
-      dout(0) << __func__ << " ###throttle committing " << kv_queue.size()
+      
+      // OS-OSD throttler design
+      /*dout(0) << __func__ << " ###lock before notify" << dendl;
+      osd->con_var.notify_all();
+      dout(0) << __func__ << " ###lock after notify" << dendl;
+      */
+      dout(10) << __func__ << " ###throttle committing " << kv_queue.size()
 	       << " submitting " << kv_queue_unsubmitted.size()
 	       << " deferred done " << deferred_done_queue.size()
 	       << " stable " << deferred_stable_queue.size()
 	       << dendl;
       logger->dec(l_bluestore_kv_queue_size, kv_queue.size());
-      //set dequeue time
+      //set dequeue time for kv_queue
       for (auto txc : kv_queue) {
         utime_t now = ceph_clock_now();
         txc->set_kv_queue_dequeued_time(now);
@@ -8503,7 +8509,14 @@ void BlueStore::_kv_sync_thread()
       }
       
       kv_committing.swap(kv_queue);
-      dout(0)<<"### kv_queue_size="<<kv_queue.size()<<dendl;
+
+      //set enqueue time for kv_committing
+      for (auto txc : kv_committing) {
+        utime_t now = ceph_clock_now();
+        txc->set_kv_committing_enqueued_time(now);
+      }
+      
+      //dout(0)<<"### kv_queue_size="<<kv_queue.size()<<dendl;
       //logger->dec(l_bluestore_kv_queue_size, kv_queue.size());
       //logger->inc(l_bluestore_kv_committing_size);
       kv_submitting.swap(kv_queue_unsubmitted);
@@ -8584,7 +8597,7 @@ void BlueStore::_kv_sync_thread()
 	if (txc->state == TransContext::STATE_KV_QUEUED) {
 	  txc->log_state_latency(logger, l_bluestore_state_kv_queued_lat);
 	  int r = cct->_conf->bluestore_debug_omit_kv_commit ? 0 : db->submit_transaction(txc->t);
-          dout(0)<<"###debug txc->t="<<txc->t<<dendl;
+          //dout(0)<<"###debug txc->t="<<txc->t<<dendl;
 	  assert(r == 0);
 	  _txc_applied_kv(txc);
 	  --txc->osr->kv_committing_serially;
@@ -8611,11 +8624,11 @@ void BlueStore::_kv_sync_thread()
       // iteration there will already be ops awake.  otherwise, we
       // end up going to sleep, and then wake up when the very first
       // transaction is ready for commit.
-      if(cct->_conf->enable_throttle) {
+      //if(cct->_conf->enable_throttle) {
         //derr << "###throttle is enabled!" << dendl;
-        dout(0) << __func__ << "###throttle put[2], put " << costs << " cost" << dendl;
-        throttle_bytes.put(costs);
-      }
+        //dout(0) << __func__ << "###throttle put[2], put " << costs << " cost" << dendl;
+        //throttle_bytes.put(costs);
+      //}
 
       PExtentVector bluefs_gift_extents;
       if (bluefs &&
@@ -8659,6 +8672,13 @@ void BlueStore::_kv_sync_thread()
       int r = cct->_conf->bluestore_debug_omit_kv_commit ? 0 : db->submit_transaction_sync(synct);
       assert(r == 0);
 
+      // TESTING: release throttler after commit(08/04/2019 ym)
+      if(cct->_conf->enable_throttle) {
+        //derr << "###throttle is enabled!" << dendl;
+        dout(0) << __func__ << "###throttle put[2], put " << costs << " cost" << dendl;
+        throttle_bytes.put(costs);
+      }
+
       if (new_nid_max) {
 	nid_max = new_nid_max;
 	dout(10) << __func__ << " nid_max now " << nid_max << dendl;
@@ -8700,6 +8720,13 @@ void BlueStore::_kv_sync_thread()
 
       {
 	std::unique_lock<std::mutex> m(kv_finalize_lock);
+        // set dequeue time for kv_committing
+        for (auto txc : kv_committing) {
+          utime_t now = ceph_clock_now();
+          txc->set_kv_committing_dequeued_time(now);
+          utime_t lat = txc->get_kv_committing_dequeued_time() - txc->get_kv_committing_enqueued_time();
+          logger->tinc(l_bluestore_kv_committing_enq_to_deq_lat, lat);
+        } 
 	if (kv_committing_to_finalize.empty()) {
 	  kv_committing_to_finalize.swap(kv_committing);
 	} else {
@@ -8709,6 +8736,12 @@ void BlueStore::_kv_sync_thread()
 	    kv_committing.end());
 	  kv_committing.clear();
 	}
+       // set enqueue time for kv_committing_to_finalize
+       /*for (auto txc : kv_committing_to_finalize) {
+         utime_t now = ceph_clock_now();
+         txc->set_kv_committing_to_finalize_enqueued_time(now);
+
+       } */
 	if (deferred_stable_to_finalize.empty()) {
 	  deferred_stable_to_finalize.swap(deferred_stable);
 	} else {

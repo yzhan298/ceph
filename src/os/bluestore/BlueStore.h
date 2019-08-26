@@ -63,6 +63,7 @@ enum {
 
   l_bluestore_osr_blocking_count, // count blockings in OpSequencer
   l_bluestore_kv_queue_enq_to_deq_lat, // avg time spent in kv_queue
+  l_bluestore_kv_committing_enq_to_deq_lat, // avg time spent in kv_committing
 
   l_bluestore_state_prepare_lat,
   l_bluestore_state_aio_wait_lat,

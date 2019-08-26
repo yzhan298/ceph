@@ -10420,6 +10420,16 @@ void OSD::ShardedOpWQ::_process(uint32_t thread_index, heartbeat_handle_d *hb)
       return;
     }
   }
+
+  // OS-OSD throttler design
+  /*std::mutex mtx;
+  std::condition_variable con_var;
+  std::unuque_lock<std::mutex> thr_lock(mtx);
+  dout(0) << __func__ << " ###lock sleep" << dendl;
+  con_var.wait(thr_lock);
+  dout(0) << __func__ << " ###lock wake" << dendl;
+  */
+
   pair<spg_t, PGQueueable> item = sdata->pqueue->dequeue();
   //sdata->opwq_logger->dec(l_opwq_size,1);
   /*auto perf_op = item.second.maybe_get_op();
