@@ -8489,9 +8489,10 @@ void BlueStore::_kv_sync_thread()
       deque<DeferredBatch*> deferred_done, deferred_stable;
       uint64_t aios = 0, costs = 0;
       
-      // OS-OSD throttler design
+      // os-osd throttler design
       /*dout(0) << __func__ << " ###lock before notify" << dendl;
-      osd->con_var.notify_all();
+      os_saturated = false;
+      thr_cvar.notify_all();
       dout(0) << __func__ << " ###lock after notify" << dendl;
       */
       dout(10) << __func__ << " ###throttle committing " << kv_queue.size()

@@ -70,6 +70,11 @@ protected:
   string path;
 
 public:
+  // os-osd throttle design
+  bool os_saturated = false;
+  std::mutex thr_mtx;
+  std::condition_variable thr_cvar;
+
   CephContext* cct;
   /**
    * create - create an ObjectStore instance.

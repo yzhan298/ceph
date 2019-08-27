@@ -5,7 +5,7 @@ set -e
 
 #CEPH_DEV_DIR=/mnt/ceph
 # start ceph using vstart with raw device (in this case, /dev/sdc)
-DEVICE=/dev/sdb
+DEVICE=/dev/sdc
 
 if [ -n "$VSTART_DEST" ]; then
   SRC_PATH=`dirname $0`
@@ -508,7 +508,7 @@ $DAEMONOPTS
         filestore wbthrottle btrfs ios start flusher = 10
 
 	enable_throttle = false
-        bluestore_throttle_bytes = 94961664
+        bluestore_throttle_bytes = 47480832
         bluestore_throttle_deferred_bytes = 134217728
         bluestore_throttle_cost_per_io = 5000
         bluestore_throttle_cost_per_io_hdd = 670000

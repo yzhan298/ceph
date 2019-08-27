@@ -1885,6 +1885,11 @@ private:
   std::atomic<uint64_t> blobid_last = {0};
   std::atomic<uint64_t> blobid_max = {0};
 
+  // os-osd throttle design
+  // std::mutex thr_mtx;
+  // std::condition_variable thr_cvar;
+
+
   Throttle throttle_bytes;          ///< submit to commit
   Throttle throttle_deferred_bytes;  ///< submit to deferred complete
 

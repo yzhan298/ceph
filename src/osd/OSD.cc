@@ -10422,12 +10422,17 @@ void OSD::ShardedOpWQ::_process(uint32_t thread_index, heartbeat_handle_d *hb)
   }
 
   // OS-OSD throttler design
-  /*std::mutex mtx;
-  std::condition_variable con_var;
-  std::unuque_lock<std::mutex> thr_lock(mtx);
-  dout(0) << __func__ << " ###lock sleep" << dendl;
-  con_var.wait(thr_lock);
-  dout(0) << __func__ << " ###lock wake" << dendl;
+  //std::mutex mtx;
+  //std::condition_variable con_var;
+  
+  /*std::unique_lock<std::mutex> thr_lock(osd->store->thr_mtx);
+  dout(0) << __func__ << " ###lock sleep, os_saturated="<<osd->store->os_saturated << dendl;
+  while(osd->store->os_saturated) {
+    osd->store->thr_cvar.wait(thr_lock);
+  }
+  thr_lock.unlock();
+  //osd->store->thr_cvar.wait(thr_lock, []{return osd->store->dataReady;});
+  dout(0) << __func__ << " ###lock wake, os_saturated="<<osd->store->os_saturated << dendl;
   */
 
   pair<spg_t, PGQueueable> item = sdata->pqueue->dequeue();
