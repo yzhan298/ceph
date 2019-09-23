@@ -1889,7 +1889,6 @@ private:
   // std::mutex thr_mtx;
   // std::condition_variable thr_cvar;
 
-
   Throttle throttle_bytes;          ///< submit to commit
   Throttle throttle_deferred_bytes;  ///< submit to deferred complete
 
@@ -2002,6 +2001,10 @@ private:
     }
   } mempool_thread;
 
+  // osd-os throttle
+  int64_t get_current_budget() override {
+    return throttle_bytes.get_current();
+  } 
   // --------------------------------------------------------
   // private methods
 

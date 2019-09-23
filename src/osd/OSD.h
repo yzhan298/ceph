@@ -1599,6 +1599,9 @@ public:
     }
   } heartbeat_dispatcher;
 
+  // osd-os throttle
+  void _cal_cost(MOSDOp* _op);
+  bool has_enough_budget(int64_t budget, int cost);
 private:
   // -- waiters --
   list<OpRequestRef> finished;

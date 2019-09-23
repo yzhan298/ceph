@@ -8625,11 +8625,11 @@ void BlueStore::_kv_sync_thread()
       // iteration there will already be ops awake.  otherwise, we
       // end up going to sleep, and then wake up when the very first
       // transaction is ready for commit.
-      //if(cct->_conf->enable_throttle) {
-        //derr << "###throttle is enabled!" << dendl;
-        //dout(0) << __func__ << "###throttle put[2], put " << costs << " cost" << dendl;
-        //throttle_bytes.put(costs);
-      //}
+      if(cct->_conf->enable_throttle) {
+        derr << "###throttle is enabled!" << dendl;
+        dout(0) << __func__ << "###throttle put[2], put " << costs << " cost" << dendl;
+        throttle_bytes.put(costs);
+      }
 
       PExtentVector bluefs_gift_extents;
       if (bluefs &&
@@ -8674,11 +8674,11 @@ void BlueStore::_kv_sync_thread()
       assert(r == 0);
 
       // TESTING: release throttler after commit(08/04/2019 ym)
-      if(cct->_conf->enable_throttle) {
+      /*if(cct->_conf->enable_throttle) {
         //derr << "###throttle is enabled!" << dendl;
         dout(0) << __func__ << "###throttle put[2], put " << costs << " cost" << dendl;
         throttle_bytes.put(costs);
-      }
+      }*/
 
       if (new_nid_max) {
 	nid_max = new_nid_max;
@@ -9110,7 +9110,7 @@ int BlueStore::queue_transactions(
 
   utime_t tstart = ceph_clock_now();
   if(cct->_conf->enable_throttle) {
-    dout(0) << __func__ << " ###throttle[4] get " << txc->cost << " cost"
+    dout(10) << __func__ << " ###throttle[4] get " << txc->cost << " cost"
     << ", state_name=" << txc->get_state_name()<< dendl;
     throttle_bytes.get(txc->cost);
   }

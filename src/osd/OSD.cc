@@ -10288,6 +10288,33 @@ void OSD::PeeringWQ::_dequeue(list<PG*> *out) {
   in_use.insert(out->begin(), out->end());
 }
 
+// osd-os throttle
+// calculate cost for each OSDOp
+void OSD::_cal_cost(MOSDOp* _op)
+{
+  int ops = 1;  // one op
+  if(_op->ops.size()) {
+    ops += _op->ops.size();
+  }
+  /*for (auto& p : _op->ops) {
+    ops += p.size();
+  }*/
+  //auto cost = throttle_cost_per_io.load();
+  int cost = 1000;
+  _op->cost = ops * cost; // could also add the size of _op
+  dout(0) << __func__ << " ### _op=" << _op <<", # of ops="<< ops << ", cost=" << cost
+          <<", MOSDOp_cost=" << _op->cost << dendl;
+}
+
+bool OSD::has_enough_budget(int64_t budget, int cost) 
+{
+  auto remaining_budget = budget - cost;
+  if(remaining_budget <= 0) {
+    return false;
+  } else {
+    return true;
+  } 
+}
 
 // =============================================================
 
@@ -10421,7 +10448,11 @@ void OSD::ShardedOpWQ::_process(uint32_t thread_index, heartbeat_handle_d *hb)
     }
   }
 
-  // OS-OSD throttler design
+  // osd-os throttler design
+  // get MOSDOp from the op
+  //item.second.maybe_get_op().get()
+  //MOSDOp *m = static_cast<MOSDOp*>(op->get_nonconst_req());
+  //throttle_bytes.get(); 
   //std::mutex mtx;
   //std::condition_variable con_var;
   
@@ -10436,6 +10467,28 @@ void OSD::ShardedOpWQ::_process(uint32_t thread_index, heartbeat_handle_d *hb)
   */
 
   pair<spg_t, PGQueueable> item = sdata->pqueue->dequeue();
+  
+  // osd-os throttler design
+  // get MOSDOp from the op
+  //item.second.maybe_get_op().get()
+  // XXX: add case condition to handle maybe_get_op() // check the dispatcher to see hot it works
+  if(item.second.maybe_get_op()) {
+    MOSDOp *mosdop = static_cast<MOSDOp*>(item.second.maybe_get_op().get()->get_nonconst_req());
+    osd->_cal_cost(mosdop);
+    // check the budget from BlueStore
+    //bool enough_budget = has_enough_budget(store->budget, mosdop->cost);
+    auto cur_budget = osd->store->get_current_budget();
+    dout(0)<<"### budget="<<cur_budget<<dendl; 
+    /*if(enough_budget) {
+      // a go
+    }else {
+      // throttle(block the current thread)
+      //osd->store->throttle_bytes.get(mosdop->cost); 
+    }*/
+  }
+  // XXX: don't need to add throttle to the ObjectStore, just pass value.
+  // XXX: still, we need to find a way to call the BlueStore throttle_bytes.get() to block the thread
+  //osd->store->throttle_bytes.get(mosdop->cost);
   //sdata->opwq_logger->dec(l_opwq_size,1);
   /*auto perf_op = item.second.maybe_get_op();
   if(perf_op) {
@@ -10473,6 +10526,14 @@ void OSD::ShardedOpWQ::_process(uint32_t thread_index, heartbeat_handle_d *hb)
   sdata->sdata_op_ordering_lock.Unlock();
 
   osd->service.maybe_inject_dispatch_delay();
+
+  // pg->lock starts
+  // TODO:
+  // get budget from BlueStore(a function getting BS state)
+  // make decisions whether to proceed or not
+    
+
+
 
   // [lookup +] lock pg (if we have it)
   if (!pg) {
@@ -10601,7 +10662,7 @@ void OSD::ShardedOpWQ::_process(uint32_t thread_index, heartbeat_handle_d *hb)
 
   ThreadPool::TPHandle tp_handle(osd->cct, hb, timeout_interval,
 				 suicide_interval);
-  qi->run(osd, pg, tp_handle);
+  qi->run(osd, pg, tp_handle); // dequeue request, calling dequeue_op
   
   auto perf_op = qi->maybe_get_op();
   if(perf_op) {

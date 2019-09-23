@@ -70,10 +70,14 @@ protected:
   string path;
 
 public:
-  // os-osd throttle design
+  // osd-os throttle design
   bool os_saturated = false;
-  std::mutex thr_mtx;
-  std::condition_variable thr_cvar;
+  //std::mutex thr_mtx;
+  //std::condition_variable thr_cvar; 
+  int64_t throttle_budget = 0; // tottle budget 
+  virtual int64_t get_current_budget(){
+    return 0;
+  }
 
   CephContext* cct;
   /**

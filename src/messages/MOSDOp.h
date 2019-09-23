@@ -54,6 +54,8 @@ private:
   //
 public:
   vector<OSDOp> ops;
+  // osd-os throttle
+  int cost; // total cost for OSDOp
 private:
   snapid_t snap_seq;
   vector<snapid_t> snaps;
