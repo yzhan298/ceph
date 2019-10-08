@@ -69,15 +69,22 @@ class ObjectStore {
 protected:
   string path;
 
+private:
+  Throttle* throttle_bytes;
+
 public:
   // osd-os throttle design
-  bool os_saturated = false;
+  //bool os_saturated = false;
   //std::mutex thr_mtx;
   //std::condition_variable thr_cvar; 
-  int64_t throttle_budget = 0; // tottle budget 
+  //int64_t throttle_budget = 0; // tottle budget 
   virtual int64_t get_current_budget(){
     return 0;
   }
+  
+  virtual Throttle* get_throttler() {
+    return throttle_bytes;
+  }   
 
   CephContext* cct;
   /**

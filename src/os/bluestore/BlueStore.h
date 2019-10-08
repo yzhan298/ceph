@@ -2002,9 +2002,14 @@ private:
   } mempool_thread;
 
   // osd-os throttle
+  // get current budget
   int64_t get_current_budget() override {
-    return throttle_bytes.get_current();
+    return throttle_bytes.get_max() - throttle_bytes.get_current();
   } 
+  
+  Throttle* get_throttler() override {
+    return &throttle_bytes;
+  }
   // --------------------------------------------------------
   // private methods
 

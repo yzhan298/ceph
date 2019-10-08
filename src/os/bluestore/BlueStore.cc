@@ -9109,11 +9109,11 @@ int BlueStore::queue_transactions(
     handle->suspend_tp_timeout();
 
   utime_t tstart = ceph_clock_now();
-  if(cct->_conf->enable_throttle) {
+  /*if(cct->_conf->enable_throttle) {
     dout(10) << __func__ << " ###throttle[4] get " << txc->cost << " cost"
     << ", state_name=" << txc->get_state_name()<< dendl;
     throttle_bytes.get(txc->cost);
-  }
+  }*/
   if (txc->deferred_txn && cct->_conf->enable_throttle) {
     // ensure we do not block here because of deferred writes
     if (!throttle_deferred_bytes.get_or_fail(txc->cost)) {

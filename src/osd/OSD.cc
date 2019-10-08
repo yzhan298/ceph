@@ -10474,18 +10474,30 @@ void OSD::ShardedOpWQ::_process(uint32_t thread_index, heartbeat_handle_d *hb)
   // XXX: add case condition to handle maybe_get_op() // check the dispatcher to see hot it works
   if(item.second.maybe_get_op()) {
     MOSDOp *mosdop = static_cast<MOSDOp*>(item.second.maybe_get_op().get()->get_nonconst_req());
+    dout(0)<<"### mosdop_cost1="<<mosdop->cost<<dendl;
     osd->_cal_cost(mosdop);
+    dout(0)<<"### mosdop_cost2="<<mosdop->cost<<dendl;
     // check the budget from BlueStore
     //bool enough_budget = has_enough_budget(store->budget, mosdop->cost);
     auto cur_budget = osd->store->get_current_budget();
-    dout(0)<<"### budget="<<cur_budget<<dendl; 
+    dout(0)<<"### budget1="<<cur_budget<<dendl; 
+    bool enough_budget = osd->has_enough_budget(cur_budget, mosdop->cost);
     /*if(enough_budget) {
       // a go
+      dout(0)<<"### budget2="<<cur_budget<<dendl;
+      // update the budget
+      // we call get() to take the tokens out of bucket  
+      // if the bucket is empty, the thread is blocked.
+      osd->store->get_throttler()->get(mosdop->cost);
+      dout(0)<<"### budget3="<<osd->store->get_current_budget()<<dendl;
     }else {
-      // throttle(block the current thread)
-      //osd->store->throttle_bytes.get(mosdop->cost); 
+      // XXX: ERROR: common/Throttle.cc: 239: FAILED assert(count >= c)
+      // TODO we can call throttle->_wait();
+      osd->store->get_throttler()->block_thread(mosdop->cost);
     }*/
+    osd->store->get_throttler()->get(mosdop->cost);
   }
+  
   // XXX: don't need to add throttle to the ObjectStore, just pass value.
   // XXX: still, we need to find a way to call the BlueStore throttle_bytes.get() to block the thread
   //osd->store->throttle_bytes.get(mosdop->cost);

@@ -125,6 +125,11 @@ bool Throttle::_wait(int64_t c)
   return waited;
 }
 
+bool Throttle::block_thread(int64_t c) {
+  return _wait(c);
+
+} 
+
 bool Throttle::wait(int64_t m)
 {
   if (0 == max && 0 == m) {

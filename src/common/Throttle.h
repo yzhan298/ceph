@@ -85,6 +85,9 @@ public:
    */
   bool wait(int64_t m = 0);
 
+  // block the worker thread 
+  bool block_thread(int64_t c);
+
   /**
    * take the specified number of slots from the stock regardless the throttling
    * @param c number of slots to take
