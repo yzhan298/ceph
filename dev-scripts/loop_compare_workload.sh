@@ -15,7 +15,7 @@ sudo bin/ceph osd pool create mybench 150 150
 #  ./run_rados_single_dump.sh $qdepth
 #done
 
-for qdepth in {1..10..1}
+for qdepth in {10..510..10}
 do
   ./run_rados_single_dump.sh $qdepth
 done
