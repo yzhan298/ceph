@@ -90,6 +90,7 @@ private:
   uint8_t latest_flag_point;
   utime_t enqueued_time;
   utime_t dequeued_time;
+  
   static const uint8_t flag_queued_for_pg=1 << 0;
   static const uint8_t flag_reached_pg =  1 << 1;
   static const uint8_t flag_delayed =     1 << 2;

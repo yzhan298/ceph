@@ -67,6 +67,9 @@ class PGQueueable {
   utime_t start_time;
   entity_inst_t owner;
   epoch_t map_epoch;    ///< an epoch we expect the PG to exist in
+  
+  // osd-os throttle
+  int throttle_cost = 0;
 
   struct RunVis : public boost::static_visitor<> {
     OSD *osd;
@@ -145,4 +148,11 @@ public:
   entity_inst_t get_owner() const { return owner; }
   epoch_t get_map_epoch() const { return map_epoch; }
   const QVariant& get_variant() const { return qvariant; }
+  // osd-os throttle
+  int get_cost() {
+    return throttle_cost;
+  }
+  int set_cost(int c) {
+    throttle_cost = c;
+  }
 }; // struct PGQueueable

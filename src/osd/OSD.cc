@@ -10481,7 +10481,8 @@ void OSD::ShardedOpWQ::_process(uint32_t thread_index, heartbeat_handle_d *hb)
     //bool enough_budget = has_enough_budget(store->budget, mosdop->cost);
     auto cur_budget = osd->store->get_current_budget();
     dout(0)<<"### budget1="<<cur_budget<<dendl; 
-    bool enough_budget = osd->has_enough_budget(cur_budget, mosdop->cost);
+    //XXX: no need the func enough_budget
+    //bool enough_budget = osd->has_enough_budget(cur_budget, mosdop->cost);
     /*if(enough_budget) {
       // a go
       dout(0)<<"### budget2="<<cur_budget<<dendl;
@@ -10496,6 +10497,8 @@ void OSD::ShardedOpWQ::_process(uint32_t thread_index, heartbeat_handle_d *hb)
       osd->store->get_throttler()->block_thread(mosdop->cost);
     }*/
     osd->store->get_throttler()->get(mosdop->cost);
+    // pass throttle cost to PGQueueable
+    item.second.set_cost(mosdop->cost);
   }
   
   // XXX: don't need to add throttle to the ObjectStore, just pass value.
