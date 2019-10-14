@@ -10571,8 +10571,17 @@ void OSD::ShardedOpWQ::_process(uint32_t thread_index, heartbeat_handle_d *hb)
     handle_oncommits(oncommits);
     return;
   }
+  
+  // get the current # of requests from op_queue
+  osd->logger->set(l_osd_op_queue_size, sdata->pqueue->get_size_slow()); 
+  dout(0) << __func__ << "### op_qiueue_size=" << sdata->pqueue->get_size_slow() << dendl;
 
+  // dequeue one request from priority queue(op_queue)
   OpQueueItem item = sdata->pqueue->dequeue();
+
+  // get the total cost for the dequeued item
+  //TODO: print cost for item, and cost for all ops(from MOSDOp)
+
   if (osd->is_stopping()) {
     sdata->shard_lock.unlock();
     for (auto c : oncommits) {

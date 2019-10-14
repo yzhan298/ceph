@@ -37,6 +37,8 @@ enum {
 
   l_osd_op_before_queue_op_lat,
   l_osd_op_before_dequeue_op_lat,
+  
+  l_osd_op_queue_size,
 
   l_osd_sop,
   l_osd_sop_inb,

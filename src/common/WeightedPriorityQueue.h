@@ -101,6 +101,7 @@ class WeightedPriorityQueue :  public OpQueue <T, K>
       bool empty() const {
         return lp.empty();
       }
+      // return the # of requests for one client
       unsigned get_size() const {
 	return lp.size();
       }
@@ -184,7 +185,7 @@ class WeightedPriorityQueue :  public OpQueue <T, K>
       unsigned get_size_slow() const {
 	unsigned count = 0;
 	for (const auto& klass : klasses) {
-	  count += klass.get_size();
+	  count += klass.get_size(); // accumulate the # of requests for all clients
 	}
 	return count;
       }
@@ -281,7 +282,7 @@ class WeightedPriorityQueue :  public OpQueue <T, K>
 	unsigned get_size_slow() const {
 	  unsigned count = 0;
 	  for (const auto& queue : queues) {
-	    count += queue.get_size_slow();
+	    count += queue.get_size_slow(); // return total # of requests for all clients
 	  }
 	  return count;
 	}
@@ -333,10 +334,12 @@ class WeightedPriorityQueue :  public OpQueue <T, K>
       }
       return normal.pop();
     }
-    unsigned get_size_slow() {
+    // return the total # of requests for all clients(ops in op_queue)
+    unsigned get_size_slow() const override {
       return strict.get_size_slow() + normal.get_size_slow();
     }
     void dump(ceph::Formatter *f) const override {
+      f->dump_int("op_queue_size", get_size_slow());
       f->open_array_section("high_queues");
       strict.dump(f);
       f->close_section();

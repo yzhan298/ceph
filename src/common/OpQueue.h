@@ -54,6 +54,8 @@ class OpQueue {
     virtual bool empty() const = 0;
     // Return an op to be dispatch
     virtual T dequeue() = 0;
+    // return queue size;
+    virtual unsigned get_size_slow() const {return 0;};
     // Formatted output of the queue
     virtual void dump(ceph::Formatter *f) const = 0;
     // Don't leak resources on destruction
