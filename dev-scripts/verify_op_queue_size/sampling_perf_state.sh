@@ -1,12 +1,12 @@
 #!/bin/bash
-set -ex
+#set -ex
 
 bs=4096 #4k: 4096 #128k: 131072 #4m: 4194304
 os=4096 #4194304  #4096
 qdepth=$1
-time=300 #5mins=300
+time=10 #5mins=300
 parallel=1
-sampling_time=6 # second(s)
+sampling_time=2 # second(s)
 
 run_name=t_test_${qdepth}
 osd_count=1
@@ -15,12 +15,46 @@ temp=/tmp/load-ceph.$$
 
 CURRENTDATE=`date +"%Y-%m-%d %T"`
 #DATA_OUT_FILE="res_${qdepth}_${time}.csv"
-DATA_OUT_FILE="result_ssd.csv"
+DATA_OUT_FILE="result.csv"
 
-#sudo bin/ceph osd pool delete mybench mybench --yes-i-really-really-mean-it
-#sudo ../src/stop.sh
-#sudo MON=1 OSD=1 MDS=0 ../src/vstart.sh -n -x -l -b
-
-#create a pool
-#sudo bin/ceph osd pool create mybench 150 150
 sudo bin/ceph daemon osd.0 perf reset osd >/dev/null 2>/dev/null
+
+do_dump() {
+    count=$1
+    endtime=`date +%s.%N`
+    for o in $(seq 0 $(expr $osd_count - 1)) ; do
+	dump_opq="dump.op_queue.${count}"
+    	sudo bin/ceph daemon osd.${o} dump_op_pq_state 2>/dev/null | tee $dump_opq | jq 'map(.op_queue_size)' >$temp
+	for s in $(seq 0 $(expr $shard_count - 1)) ; do
+		op_queue_size=$(jq ".[${s}]" $temp)
+		echo "${count}.${o}.${s} : ${op_queue_size}"
+	done
+        dump_state="dump.state.${count}"
+	sudo bin/ceph daemon osd.0 perf dump 2>/dev/null | tee $dump_state
+done
+}
+
+time_dump() {
+    count=$1
+    sleepsec=$2
+    for i in $(seq $count) ; do
+        sleep $sleepsec
+	do_dump $i
+done
+}
+
+sleep 5
+
+starttime=`date +%s.%N`
+
+samples=$(expr $time/2 | bc -l)
+time_dump $samples $sampling_time &
+
+for p in $(seq $parallel) ; do
+    sudo bin/rados bench -p mybench -b ${bs} -o ${os} -t ${qdepth} --run-name=${run_name}_${p} ${time} write --run-name ${run_name}-${p} --no-cleanup > rados-bench-${qdepth}-${p} &
+done
+
+wait
+
+echo rados bench finished
+
