@@ -1,0 +1,107 @@
+{
+    "OSD:ShardedOpWQ:0": {
+        "op_queue_size": 31,
+        "high_queues": [
+            119595,
+            0,
+            {
+                "priority": 255,
+                "num_keys": 27,
+                "first_item_cost": 0
+            }
+        ],
+        "queues": [
+            63,
+            4096,
+            {
+                "priority": 63,
+                "num_keys": 4,
+                "first_item_cost": 4096
+            }
+        ]
+    },
+    "OSD:ShardedOpWQ:1": {
+        "op_queue_size": 30,
+        "high_queues": [
+            119085,
+            0,
+            {
+                "priority": 255,
+                "num_keys": 25,
+                "first_item_cost": 0
+            }
+        ],
+        "queues": [
+            63,
+            4096,
+            {
+                "priority": 63,
+                "num_keys": 5,
+                "first_item_cost": 4096
+            }
+        ]
+    },
+    "OSD:ShardedOpWQ:2": {
+        "op_queue_size": 26,
+        "high_queues": [
+            119085,
+            0,
+            {
+                "priority": 255,
+                "num_keys": 21,
+                "first_item_cost": 0
+            }
+        ],
+        "queues": [
+            63,
+            4096,
+            {
+                "priority": 63,
+                "num_keys": 5,
+                "first_item_cost": 4096
+            }
+        ]
+    },
+    "OSD:ShardedOpWQ:3": {
+        "op_queue_size": 26,
+        "high_queues": [
+            117555,
+            0,
+            {
+                "priority": 255,
+                "num_keys": 24,
+                "first_item_cost": 0
+            }
+        ],
+        "queues": [
+            63,
+            4096,
+            {
+                "priority": 63,
+                "num_keys": 2,
+                "first_item_cost": 4096
+            }
+        ]
+    },
+    "OSD:ShardedOpWQ:4": {
+        "op_queue_size": 14,
+        "high_queues": [
+            118065,
+            0,
+            {
+                "priority": 255,
+                "num_keys": 13,
+                "first_item_cost": 0
+            }
+        ],
+        "queues": [
+            63,
+            4096,
+            {
+                "priority": 63,
+                "num_keys": 1,
+                "first_item_cost": 4096
+            }
+        ]
+    }
+}

@@ -1,0 +1,67 @@
+{
+    "OSD:ShardedOpWQ:0": {
+        "op_queue_size": 10,
+        "high_queues": [
+            386070,
+            0,
+            {
+                "priority": 255,
+                "num_keys": 10,
+                "first_item_cost": 0
+            }
+        ],
+        "queues": []
+    },
+    "OSD:ShardedOpWQ:1": {
+        "op_queue_size": 10,
+        "high_queues": [
+            381480,
+            0,
+            {
+                "priority": 255,
+                "num_keys": 10,
+                "first_item_cost": 0
+            }
+        ],
+        "queues": []
+    },
+    "OSD:ShardedOpWQ:2": {
+        "op_queue_size": 12,
+        "high_queues": [
+            378930,
+            0,
+            {
+                "priority": 255,
+                "num_keys": 12,
+                "first_item_cost": 0
+            }
+        ],
+        "queues": []
+    },
+    "OSD:ShardedOpWQ:3": {
+        "op_queue_size": 10,
+        "high_queues": [
+            372300,
+            0,
+            {
+                "priority": 255,
+                "num_keys": 10,
+                "first_item_cost": 0
+            }
+        ],
+        "queues": []
+    },
+    "OSD:ShardedOpWQ:4": {
+        "op_queue_size": 13,
+        "high_queues": [
+            371280,
+            0,
+            {
+                "priority": 255,
+                "num_keys": 13,
+                "first_item_cost": 0
+            }
+        ],
+        "queues": []
+    }
+}
