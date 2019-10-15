@@ -11689,7 +11689,10 @@ void BlueStore::_kv_sync_thread()
       // iteration there will already be ops awake.  otherwise, we
       // end up going to sleep, and then wake up when the very first
       // transaction is ready for commit.
-      throttle.release_kv_throttle(costs);
+      if(cct->_conf->enable_throttle) {
+	  dout(0)<<__func__<<" ### bluestore throttle put called." << dendl;
+          throttle.release_kv_throttle(costs);
+      }
 
       if (bluefs &&
 	  after_flush - bluefs_last_balance >
@@ -12178,6 +12181,12 @@ int BlueStore::queue_transactions(
     handle->suspend_tp_timeout();
 
   auto tstart = mono_clock::now();
+  
+  // take cost from budget
+  if(cct->_conf->enable_throttle) {
+    dout(0)<<__func__<<" ### bluestore throttle get called!" << dendl;
+    throttle.get_throttle(txc->cost);
+  }
 
   if (!throttle.try_start_transaction(
 	*db,
@@ -14903,7 +14912,7 @@ bool BlueStore::BlueStoreThrottle::try_start_transaction(
   TransContext &txc,
   mono_clock::time_point start_throttle_acquire)
 {
-  throttle_bytes.get(txc.cost);
+  //throttle_bytes.get(txc.cost);
 
   if (!txc.deferred_txn || throttle_deferred_bytes.get_or_fail(txc.cost)) {
     emit_initial_tracepoint(db, txc, start_throttle_acquire);

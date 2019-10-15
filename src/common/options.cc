@@ -4775,6 +4775,10 @@ std::vector<Option> get_global_options() {
       .set_default(2)
       .set_description("Number of additional threads to perform quick-fix (shallow fsck) command"),
 
+    Option("enable_throttle", Option::TYPE_BOOL, Option::LEVEL_ADVANCED)
+    .set_default(true)
+    .set_description("enable bluestore throttler"),
+
     Option("bluestore_throttle_bytes", Option::TYPE_SIZE, Option::LEVEL_ADVANCED)
     .set_default(64_M)
     .set_flag(Option::FLAG_RUNTIME)

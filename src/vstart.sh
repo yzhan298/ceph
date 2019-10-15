@@ -663,7 +663,14 @@ EOF
         bluestore block db create = true
         bluestore block wal path = $CEPH_DEV_DIR/osd\$id/block.wal.file
         bluestore block wal size = 1048576000
-        bluestore block wal create = true"
+        bluestore block wal create = true
+	
+	enable_throttle = true
+	bluestore_throttle_bytes = 67108864
+	bluestore_throttle_deferred_bytes = 134217728
+	bluestore_throttle_cost_per_io = 5000
+	bluestore_throttle_cost_per_io_hdd = 670000
+	bluestore_throttle_cost_per_io_ssd = 4000"
         fi
     fi
     wconf <<EOF

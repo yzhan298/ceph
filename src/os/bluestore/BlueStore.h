@@ -1679,6 +1679,9 @@ public:
       KeyValueDB &db,
       TransContext &txc,
       mono_clock::time_point);
+    void get_throttle(uint64_t cost) {
+	    throttle_bytes.get(cost);
+    }
     void release_kv_throttle(uint64_t cost) {
       throttle_bytes.put(cost);
     }
