@@ -15,9 +15,15 @@ temp=/tmp/load-ceph.$$
 
 CURRENTDATE=`date +"%Y-%m-%d %T"`
 #DATA_OUT_FILE="res_${qdepth}_${time}.csv"
-DATA_OUT_FILE="result_${CURRENTDATE}.csv"
+DATA_OUT_FILE="dump-result.csv"
+
+shard_name=""
+for i in $(seq 0 $(expr $shard_count - 1)); do
+	shard_name+="opq_${i}_size "
+done
+
 printf "%s\n" ${CURRENTDATE} |  paste -sd ',' > ${DATA_OUT_FILE}
-printf '%s\n' "bs" "runtime" "concurrency" "throughput" "latency" |  paste -sd ',' >> ${DATA_OUT_FILE} 
+printf '%s\n' "bs" "runtime" "concurrency" "throughput" "latency" $shard_name |  paste -sd ',' >> ${DATA_OUT_FILE} 
 
 sudo bin/ceph daemon osd.0 perf reset osd >/dev/null 2>/dev/null
 
@@ -27,14 +33,16 @@ do_dump() {
     for o in $(seq 0 $(expr $osd_count - 1)) ; do
 	dump_opq="dump.op_queue.${count}"
     	sudo bin/ceph daemon osd.${o} dump_op_pq_state 2>/dev/null | tee $dump_opq | jq 'map(.op_queue_size)' >$temp
+	opq_size=""
 	for s in $(seq 0 $(expr $shard_count - 1)) ; do
 		op_queue_size=$(jq ".[${s}]" $temp)
-		echo "count-${count}.osd-${o}.shard-${s} : ${op_queue_size}"
+		#echo "count-${count}.osd-${o}.shard-${s} : ${op_queue_size}"
+		opq_size+="${op_queue_size} "
 	done
         dump_state="dump.state.${count}"
 	sudo bin/ceph daemon osd.0 perf dump 2>/dev/null | tee $dump_state
 
-	printf '%s\n' $bs $time $qdepth | paste -sd ',' >> ${DATA_OUT_FILE}
+	printf '%s\n' $bs $time $qdepth 0 0 $opq_size | paste -sd ',' >> ${DATA_OUT_FILE}
 done
 }
 
@@ -51,11 +59,11 @@ sleep 5
 
 starttime=`date +%s.%N`
 
-samples=$(expr $time/2 | bc -l)
+samples=$(expr $time/${sampling_time} | bc -l)
 time_dump $samples $sampling_time > dump &
 
 for p in $(seq $parallel) ; do
-    sudo bin/rados bench -p mybench -b ${bs} -o ${os} -t ${qdepth} --run-name=${run_name}_${p} ${time} write --run-name ${run_name}-${p} --no-cleanup > rados-bench-${qdepth}-${p} &
+    sudo bin/rados bench -p mybench -b ${bs} -o ${os} -t ${qdepth} --run-name=${run_name}_${p} ${time} write --run-name ${run_name}-${p} --no-cleanup > dump-rados-bench-${qdepth}-${p} &
 done
 
 wait

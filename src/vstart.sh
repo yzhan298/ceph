@@ -665,7 +665,7 @@ EOF
         bluestore block wal size = 1048576000
         bluestore block wal create = true
 	
-	enable_throttle = true
+	enable_throttle = false
 	bluestore_throttle_bytes = 67108864
 	bluestore_throttle_deferred_bytes = 134217728
 	bluestore_throttle_cost_per_io = 5000
