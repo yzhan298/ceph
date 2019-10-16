@@ -665,7 +665,8 @@ EOF
         bluestore block wal size = 1048576000
         bluestore block wal create = true
 	
-	enable_throttle = false
+	osd_op_num_shards = 1
+	enable_throttle = true
 	bluestore_throttle_bytes = 67108864
 	bluestore_throttle_deferred_bytes = 134217728
 	bluestore_throttle_cost_per_io = 5000
@@ -719,7 +720,6 @@ $DAEMONOPTS
         osd class dir = $OBJCLASS_PATH
         osd class load list = *
         osd class default list = *
-
         filestore wbthrottle xfs ios start flusher = 10
         filestore wbthrottle xfs ios hard limit = 20
         filestore wbthrottle xfs inodes hard limit = 30

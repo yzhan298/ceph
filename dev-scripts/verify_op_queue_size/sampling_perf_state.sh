@@ -1,16 +1,16 @@
 #!/bin/bash
-#set -ex
+set -ex
 
 bs=4096 #4k: 4096 #128k: 131072 #4m: 4194304
 os=4096 #4194304  #4096
 qdepth=$1
-time=300 #5mins=300
+time=60 #5mins=300
 parallel=1
 sampling_time=2 # second(s)
 
 run_name=test_${qdepth}
 osd_count=1
-shard_count=5
+shard_count=1
 temp=/tmp/load-ceph.$$
 
 CURRENTDATE=`date +"%Y-%m-%d %T"`
@@ -41,8 +41,12 @@ do_dump() {
 	done
         dump_state="dump.state.${count}"
 	sudo bin/ceph daemon osd.0 perf dump 2>/dev/null | tee $dump_state
-
-	printf '%s\n' $bs $time $qdepth 0 0 $opq_size | paste -sd ',' >> ${DATA_OUT_FILE}
+	op_in_bytes=$(jq ".osd.op_in_bytes" $dump_state) # bytes from clients from m->get_recv_stamp() to now
+	osd_op_lat=$(jq ".osd.op_latency.avgtime" $dump_state) # latency from m->get_recv_stamp() to now 
+	osd_runtime=$( echo "$endtime - $starttime" | bc -l )
+	osd_throughput=$(expr $op_in_bytes/1048576/$osd_runtime | bc -l)
+	
+	printf '%s\n' $bs $time $qdepth $osd_throughput $osd_op_lat $opq_size | paste -sd ',' >> ${DATA_OUT_FILE}
 done
 }
 
