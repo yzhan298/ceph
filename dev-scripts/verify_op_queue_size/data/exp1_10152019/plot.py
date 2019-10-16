@@ -35,6 +35,6 @@ ax2.yaxis.tick_right()
 ax2.yaxis.set_label_position("right")
 ax2.set_ylabel('Latency (s)') 
 fig1.tight_layout() 
-fig1.savefig("dump_plot_lat_and_throughput.pdf", bbox_inches='tight')
+fig1.savefig("dump_plot_lat_and_throughput.png", bbox_inches='tight')
 
 #plt.show()
