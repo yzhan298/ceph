@@ -11,8 +11,10 @@ sudo MON=1 OSD=1 MDS=0 ../src/vstart.sh -b -d -k -x -l --without-dashboard
 sudo bin/ceph osd pool create mybench 150 150
 
 # run rados bench 
-./sampling_perf_state.sh 1
+# $1: client queue depth(-t in rados bench)
+# $2: total runtime for rados bench 
+./sampling_perf_state.sh 1 180
 
-# plot with python
-echo "backend: Agg" > ~/.config/matplotlib/matplotlibrc
+# plot with python(run this command for first time)
+#echo "backend: Agg" > ~/.config/matplotlib/matplotlibrc
 python plot.py

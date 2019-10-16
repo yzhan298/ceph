@@ -4,9 +4,10 @@ set -ex
 bs=4096 #4k: 4096 #128k: 131072 #4m: 4194304
 os=4096 #4194304  #4096
 qdepth=$1
-time=60 #5mins=300
+totaltime=$2
 parallel=1
 sampling_time=2 # second(s)
+skip_first_n_sampling_points=30 # time=2*30=60s
 
 run_name=test_${qdepth}
 osd_count=1
@@ -46,7 +47,7 @@ do_dump() {
 	osd_runtime=$( echo "$endtime - $starttime" | bc -l )
 	osd_throughput=$(expr $op_in_bytes/1048576/$osd_runtime | bc -l)
 	
-	printf '%s\n' $bs $time $qdepth $osd_throughput $osd_op_lat $opq_size | paste -sd ',' >> ${DATA_OUT_FILE}
+	printf '%s\n' $bs $totaltime $qdepth $osd_throughput $osd_op_lat $opq_size | paste -sd ',' >> ${DATA_OUT_FILE}
 done
 }
 
@@ -55,6 +56,9 @@ time_dump() {
     sleepsec=$2
     for i in $(seq $count) ; do
         sleep $sleepsec
+	if [ $i -lt $skip_first_n_sampling_points ]; then
+		continue
+	fi
 	do_dump $i
 done
 }
@@ -63,11 +67,11 @@ sleep 5
 
 starttime=`date +%s.%N`
 
-samples=$(expr $time/${sampling_time} | bc -l)
+samples=$(expr $totaltime/${sampling_time} | bc -l)
 time_dump $samples $sampling_time > dump &
 
 for p in $(seq $parallel) ; do
-    sudo bin/rados bench -p mybench -b ${bs} -o ${os} -t ${qdepth} --run-name=${run_name}_${p} ${time} write --run-name ${run_name}-${p} --no-cleanup > dump-rados-bench-${qdepth}-${p} &
+    sudo bin/rados bench -p mybench -b ${bs} -o ${os} -t ${qdepth} --run-name=${run_name}_${p} ${totaltime} write --run-name ${run_name}-${p} --no-cleanup > dump-rados-bench-${qdepth}-${p} &
 done
 
 wait
