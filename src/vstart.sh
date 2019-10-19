@@ -665,6 +665,7 @@ EOF
         bluestore block wal size = 1048576000
         bluestore block wal create = true
 	
+	bluestore_debug_enforce_settings=hdd
 	osd_op_num_shards = 1
 	enable_throttle = true
 	bluestore_throttle_bytes = 67108864
