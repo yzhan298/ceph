@@ -4337,12 +4337,14 @@ void BlueStore::_set_throttle_params()
     ceph_assert(bdev);
     if (_use_rotational_settings()) {
       throttle_cost_per_io = cct->_conf->bluestore_throttle_cost_per_io_hdd;
+      dout(10) << __func__ << " HDD "<< dendl;
     } else {
       throttle_cost_per_io = cct->_conf->bluestore_throttle_cost_per_io_ssd;
+      dout(10) << __func__ << " SSD "<< dendl;
     }
   }
 
-  dout(10) << __func__ << " throttle_cost_per_io " << throttle_cost_per_io
+  dout(0) << __func__ << " throttle_cost_per_io " << throttle_cost_per_io
 	   << dendl;
 }
 void BlueStore::_set_blob_size()

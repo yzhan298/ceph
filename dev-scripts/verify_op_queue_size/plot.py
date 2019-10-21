@@ -11,7 +11,7 @@ plt.xlim(0)
 plt.ylim(0)
 plt.xlabel('Time')
 plt.ylabel('Op Queue Size')
-plt.savefig("dump_plot_op_queue.pdf", bbox_inches='tight')
+plt.savefig("dump_plot_op_queue.png", bbox_inches='tight')
 
 # check latency and throughput
 plt.figure(2)
@@ -21,7 +21,7 @@ plt.xlim(0)
 plt.ylim(0)
 plt.xlabel('Throughput (MB/s)')
 plt.ylabel('Latency (s)')
-plt.savefig("dump_plot_lat_vs_throughput.pdf", bbox_inches='tight')
+plt.savefig("dump_plot_lat_vs_throughput.png", bbox_inches='tight')
 
 # plot lat and throughput
 fig1 = plt.figure(3)
