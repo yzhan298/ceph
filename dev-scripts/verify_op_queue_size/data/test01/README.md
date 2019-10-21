@@ -22,5 +22,9 @@ Goal: observe the saturation in BlueStore.
 
 Result: The op\_queue size is always 0. 
 
-Issiue: The throttle bytes is not using the 670000 for cost, it seems that the auto detection of HDD is not correct. 
+Issiue: The throttle bytes is not using the 670000 as cost .
+
+Solution: set the ```bluestore_throttle_cost_per_io = 0``` and change the writing block size to 128KB. On harddisk, the smaller workloads could become deferred writes.
+
+Next Step: In next exeripment, we set the default ```cost_per_io``` to 0, and forcing the osd to read disk as HDD. We also change the bs to 128KB. 
 

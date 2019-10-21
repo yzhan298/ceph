@@ -669,7 +669,8 @@ EOF
 	osd_op_num_shards = 1
 	enable_throttle = true
 	bluestore_throttle_bytes = 67108864
-	bluestore_throttle_deferred_bytes = 134217728
+	;bluestore_throttle_deferred_bytes = 134217728
+	bluestore_throttle_deferred_bytes = 670000
 	bluestore_throttle_cost_per_io = 0
 	bluestore_throttle_cost_per_io_hdd = 670000
 	bluestore_throttle_cost_per_io_ssd = 4000"
