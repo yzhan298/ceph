@@ -4485,6 +4485,8 @@ void BlueStore::_init_logger()
   b.add_time_avg(l_bluestore_kv_final_lat, "kv_final_lat",
 		 "Average kv_finalize thread latency",
 		 "kf_l", PerfCountersBuilder::PRIO_INTERESTING);
+  b.add_time_avg(l_bluestore_service_lat, "bluestore_service_lat",
+		 "avg time from state KV_PREPARED to KV_FINISHED(total time for a txc in BlueStore)");
   b.add_time_avg(l_bluestore_state_prepare_lat, "state_prepare_lat",
     "Average prepare state latency");
   b.add_time_avg(l_bluestore_state_aio_wait_lat, "state_aio_wait_lat",
@@ -4494,6 +4496,10 @@ void BlueStore::_init_logger()
     "Average io_done state latency");
   b.add_time_avg(l_bluestore_state_kv_queued_lat, "state_kv_queued_lat",
     "Average kv_queued state latency");
+  b.add_u64(l_bluestore_kv_queue_size, "bluestore_kv_queue_size",
+		  "Observe the kv_queue size");
+  b.add_u64(l_bluestore_kv_queue_avg_size, "bluestore_kv_queue_avg_size",
+		  "Observe the average kv_queue size");
   b.add_time_avg(l_bluestore_state_kv_committing_lat, "state_kv_commiting_lat",
     "Average kv_commiting state latency");
   b.add_time_avg(l_bluestore_state_kv_done_lat, "state_kv_done_lat",
@@ -4552,7 +4558,6 @@ void BlueStore::_init_logger()
     "Sum for bytes allocated for compressed data");
   b.add_u64(l_bluestore_compressed_original, "bluestore_compressed_original",
     "Sum for original bytes that were compressed");
-
   b.add_u64(l_bluestore_onodes, "bluestore_onodes",
 	    "Number of onodes in cache");
   b.add_u64_counter(l_bluestore_onode_hits, "bluestore_onode_hits",
@@ -10945,6 +10950,7 @@ void BlueStore::_txc_state_proc(TransContext *txc)
     switch (txc->state) {
     case TransContext::STATE_PREPARE:
       throttle.log_state_latency(*txc, logger, l_bluestore_state_prepare_lat);
+      txc->time_created = ceph_clock_now();
       if (txc->ioc.has_pending_aios()) {
 	txc->state = TransContext::STATE_AIO_WAIT;
 	txc->had_ios = true;
@@ -11036,6 +11042,8 @@ void BlueStore::_txc_state_proc(TransContext *txc)
 
     case TransContext::STATE_FINISHING:
       throttle.log_state_latency(*txc, logger, l_bluestore_state_finishing_lat);
+      txc->time_finished = ceph_clock_now();
+      logger->tinc(l_bluestore_service_lat, txc->time_finished - txc->time_created); 
       _txc_finish(txc);
       return;
 
@@ -11197,7 +11205,8 @@ void BlueStore::_txc_apply_kv(TransContext *txc, bool sync_submit_transaction)
 #if defined(WITH_LTTNG)
     auto start = mono_clock::now();
 #endif
-
+    // this is async submit, calling submit_common()
+    // we can get RocksDB WriteBatch size with _t->bat.Count()
     int r = cct->_conf->bluestore_debug_omit_kv_commit ? 0 : db->submit_transaction(txc->t);
     ceph_assert(r == 0);
 
@@ -11566,6 +11575,11 @@ void BlueStore::_kv_sync_thread()
   ceph_assert(!kv_sync_started);
   kv_sync_started = true;
   kv_cond.notify_all();
+
+  uint64_t kvq_avg_size = 0;
+  uint64_t kvq_count = 0;
+  uint64_t kvq_sum = 0;
+
   while (true) {
     ceph_assert(kv_committing.empty());
     if (kv_queue.empty() &&
@@ -11581,12 +11595,22 @@ void BlueStore::_kv_sync_thread()
       deque<TransContext*> kv_submitting;
       deque<DeferredBatch*> deferred_done, deferred_stable;
       uint64_t aios = 0, costs = 0;
-
+      
+      // get kv_queue size
       dout(20) << __func__ << " committing " << kv_queue.size()
 	       << " submitting " << kv_queue_unsubmitted.size()
 	       << " deferred done " << deferred_done_queue.size()
 	       << " stable " << deferred_stable_queue.size()
 	       << dendl;
+      /*for(auto t : kv_queue) {
+          dout(0)<<"### kv_queue txc state=" << t->state <<dendl;
+      }*/
+      kvq_sum += kv_queue.size();
+      kvq_count++;
+      kvq_avg_size = kvq_sum / kvq_count; 
+      logger->set(l_bluestore_kv_queue_size, kv_queue.size());
+      logger->set(l_bluestore_kv_queue_avg_size, kvq_avg_size);
+
       kv_committing.swap(kv_queue);
       kv_submitting.swap(kv_queue_unsubmitted);
       deferred_done.swap(deferred_done_queue);
@@ -11668,6 +11692,7 @@ void BlueStore::_kv_sync_thread()
 
       for (auto txc : kv_committing) {
 	throttle.log_state_latency(*txc, logger, l_bluestore_state_kv_queued_lat);
+	//dout(0)<<"### kv_committing txc state = " << txc->state << dendl;
 	if (txc->state == TransContext::STATE_KV_QUEUED) {
 	  _txc_apply_kv(txc, false);
 	  --txc->osr->kv_committing_serially;
@@ -11692,7 +11717,7 @@ void BlueStore::_kv_sync_thread()
       // end up going to sleep, and then wake up when the very first
       // transaction is ready for commit.
       if(cct->_conf->enable_throttle) {
-	  dout(0)<<__func__<<" ### bluestore throttle put called." << dendl;
+	  //dout(0)<<__func__<<" ### bluestore throttle put called." << dendl;
           throttle.release_kv_throttle(costs);
       }
 
@@ -11782,7 +11807,7 @@ void BlueStore::_kv_sync_thread()
 	ceph::timespan dur_flush = after_flush - start;
 	ceph::timespan dur_kv = finish - after_flush;
 	ceph::timespan dur = finish - start;
-	dout(20) << __func__ << " committed " << committing_size
+	dout(0) << __func__ << " committed " << committing_size
 	  << " cleaned " << deferred_size
 	  << " in " << dur
 	  << " (" << dur_flush << " flush + " << dur_kv << " kv commit)"
@@ -12151,6 +12176,7 @@ int BlueStore::queue_transactions(
     tls, &on_applied, &on_commit, &on_applied_sync);
 
   auto start = mono_clock::now();
+  //utime_t bs_start = ceph_clock_now();
 
   Collection *c = static_cast<Collection*>(ch.get());
   OpSequencer *osr = c->osr.get();
@@ -12159,7 +12185,7 @@ int BlueStore::queue_transactions(
   // prepare
   TransContext *txc = _txc_create(static_cast<Collection*>(ch.get()), osr,
 				  &on_commit);
-
+ dout(10) << "###state1="<<txc->state<<dendl; // should be 0, STATE_PREPARE
   for (vector<Transaction>::iterator p = tls.begin(); p != tls.end(); ++p) {
     txc->bytes += (*p).get_num_bytes();
     _txc_add_transaction(txc, &(*p));
@@ -12186,7 +12212,7 @@ int BlueStore::queue_transactions(
   
   // take cost from budget
   if(cct->_conf->enable_throttle) {
-    dout(0)<<__func__<<" ### bluestore throttle get called!" << dendl;
+    //dout(0)<<__func__<<" ### bluestore throttle get called!" << dendl;
     throttle.get_throttle(txc->cost);
   }
 
@@ -12217,8 +12243,10 @@ int BlueStore::queue_transactions(
 
   logger->inc(l_bluestore_txc);
 
+  //txc->time_created = bs_start; 
   // execute (start)
   _txc_state_proc(txc);
+  dout(10) << "###state2="<<txc->state<<dendl; // should be 3, STATE_KV_QUEUED
 
   // we're immediately readable (unlike FileStore)
   for (auto c : on_applied_sync) {

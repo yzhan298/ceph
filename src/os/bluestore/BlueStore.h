@@ -71,10 +71,13 @@ enum {
   l_bluestore_kv_commit_lat,
   l_bluestore_kv_sync_lat,
   l_bluestore_kv_final_lat,
+  l_bluestore_service_lat, // from state KV_PREPARED to KV_FINISHED(total time for a txc in BlueStore)
   l_bluestore_state_prepare_lat,
   l_bluestore_state_aio_wait_lat,
   l_bluestore_state_io_done_lat,
   l_bluestore_state_kv_queued_lat,
+  l_bluestore_kv_queue_size,
+  l_bluestore_kv_queue_avg_size,
   l_bluestore_state_kv_committing_lat,
   l_bluestore_state_kv_done_lat,
   l_bluestore_state_deferred_queued_lat,
@@ -1544,6 +1547,9 @@ public:
     uint64_t seq = 0;
     utime_t start;
     utime_t last_stamp;
+
+    utime_t time_created; // time when first created (enters BlueStore)
+    utime_t time_finished; // time when finished
 
     uint64_t last_nid = 0;     ///< if non-zero, highest new nid we allocated
     uint64_t last_blobid = 0;  ///< if non-zero, highest new blobid we allocated
