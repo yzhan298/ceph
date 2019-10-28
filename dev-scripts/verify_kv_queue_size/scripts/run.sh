@@ -1,7 +1,7 @@
 #!/bin/bash
 
 qdepth=$1 #4
-benchtool="rbd" #accepting "rados" bench, "rbd" bench, "fio" bench
+benchtool=$2 #accepting "rados" bench, "rbd" bench, "fio" bench
 pool="mybench"
 rbd_image="bench1"
 
@@ -13,7 +13,7 @@ sudo MON=1 OSD=1 MDS=0 ../src/vstart.sh -b -d -k -x -l --without-dashboard
 # create pool
 sudo bin/ceph osd pool create $pool 150 150
 
-if [ $benchtool = "rbd" ]
+if [ $benchtool = "rbd" ] || [ $benchtool = "fio" ]
 then
     sudo bin/rbd create --size=10G ${pool}/${rbd_image}
 fi
@@ -31,14 +31,14 @@ fi
 # plot with python
 # run this command for first time:
 #echo "backend: Agg" > ~/.config/matplotlib/matplotlibrc
-python plot_bench.py
+python plot_sampling.py
 
 # move everything to a directory
 dirname=${benchtool}_exp_qd${qdepth}_$(date +%F)
 mkdir -p data/${dirname} # create data if not created
 mv dump* data/${dirname} 
 
-if [ $benchtool = "rbd" ]
+if [ $benchtool = "rbd" ] || [ $benchtool = "fio" ]
 then
     sudo bin/rbd rm ${pool}/${rbd_image}
 fi
