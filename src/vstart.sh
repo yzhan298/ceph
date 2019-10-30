@@ -595,6 +595,18 @@ prepare_conf() {
         num rgw = $CEPH_NUM_RGW
 
 [global]
+        debug bluestore = 1
+	debug mon = 0
+        debug monc = 0
+        debug mds = 0
+        debug ms = 0
+        debug osd = 0
+        debug mgrc = 0
+        debug bdev = 0
+        debug bluefs = 0
+        debug rocksdb = 0
+	debug objecter = 0
+
         fsid = $(uuidgen)
         osd failsafe full ratio = .99
         mon osd full ratio = .99

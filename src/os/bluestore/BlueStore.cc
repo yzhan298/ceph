@@ -11605,6 +11605,7 @@ void BlueStore::_kv_sync_thread()
       /*for(auto t : kv_queue) {
           dout(0)<<"### kv_queue txc state=" << t->state <<dendl;
       }*/
+      dout(0) << __func__ << " kv_queue_size="<<kv_queue.size()<<dendl;
       kvq_sum += kv_queue.size();
       kvq_count++;
       kvq_avg_size = kvq_sum / kvq_count; 
