@@ -2664,7 +2664,7 @@ void BlueStore::ExtentMap::reshard(
       (oid_slot &&
 	(mono_clock::now() - oid_slot->second >= make_timespan(5 * 60)));
     if (do_dump) {
-      dout(0) << __func__
+      dout(10) << __func__
 	      << " spanning blob count exceeds threshold, "
 	      << spanning_blob_map.size() << " spanning blobs"
 	      << dendl;
@@ -4344,7 +4344,7 @@ void BlueStore::_set_throttle_params()
     }
   }
 
-  dout(0) << __func__ << " throttle_cost_per_io " << throttle_cost_per_io
+  dout(20) << __func__ << " throttle_cost_per_io " << throttle_cost_per_io
 	   << dendl;
 }
 void BlueStore::_set_blob_size()
@@ -5488,7 +5488,7 @@ void BlueStore::_close_db_and_around()
     _close_db();
     while(out_of_sync_fm.fetch_and(0)) {
       // if seen some allocations during close - repeat open_db, sync fm, close
-      dout(0) << __func__ << " syncing FreelistManager" << dendl;
+      dout(10) << __func__ << " syncing FreelistManager" << dendl;
       int r = _open_db(false, false, false);
       if (r < 0) {
 	derr << __func__
@@ -6366,7 +6366,7 @@ int BlueStore::mkfs()
   if (r < 0) {
     derr << __func__ << " failed, " << cpp_strerror(r) << dendl;
   } else {
-    dout(0) << __func__ << " success" << dendl;
+    dout(10) << __func__ << " success" << dendl;
   }
   return r;
 }
@@ -6469,7 +6469,7 @@ int BlueStore::add_new_bluefs_device(int id, const string& dev_path)
   if (r < 0) {
     derr << __func__ << " failed, " << cpp_strerror(r) << dendl;
   } else {
-    dout(0) << __func__ << " success" << dendl;
+    dout(10) << __func__ << " success" << dendl;
   }
 
   _umount_for_bluefs();
@@ -6655,7 +6655,7 @@ int BlueStore::migrate_to_new_bluefs_device(const set<int>& devs_source,
     target_size,
     true);
   ceph_assert(r == 0);
-  dout(0) << __func__ << " success" << dendl;
+  dout(10) << __func__ << " success" << dendl;
 
 shutdown:
   _umount_for_bluefs();
@@ -7948,7 +7948,7 @@ void BlueStore::_fsck_check_objects(FSCKDepth depth,
       wq->finalize(thread_pool, ctx);
       if (processed_myself) {
         // may be needs more threads?
-        dout(0) << __func__ << " partial offload"
+        dout(10) << __func__ << " partial offload"
                 << ", done myself " << processed_myself
                 << " of " << ctx.num_objects
                 << "objects, threads " << thread_count
@@ -9342,7 +9342,7 @@ int BlueStore::read(
 	     cct->_conf->bluestore_debug_random_read_err &&
 	     (rand() % (int)(cct->_conf->bluestore_debug_random_read_err *
 			     100.0)) == 0) {
-    dout(0) << __func__ << ": inject random EIO" << dendl;
+    dout(10) << __func__ << ": inject random EIO" << dendl;
     r = -EIO;
   }
   dout(10) << __func__ << " " << cid << " " << oid
@@ -9966,7 +9966,7 @@ int BlueStore::readv(
              cct->_conf->bluestore_debug_random_read_err &&
              (rand() % (int)(cct->_conf->bluestore_debug_random_read_err *
                              100.0)) == 0) {
-    dout(0) << __func__ << ": inject random EIO" << dendl;
+    dout(10) << __func__ << ": inject random EIO" << dendl;
     r = -EIO;
   }
   dout(10) << __func__ << " " << cid << " " << oid
@@ -10964,7 +10964,7 @@ void BlueStore::_txc_state_proc(TransContext *txc)
 	utime_t lat = throttle.log_state_latency(
 	  *txc, logger, l_bluestore_state_aio_wait_lat);
 	if (lat >= cct->_conf->bluestore_log_op_age) {
-	  dout(0) << __func__ << " slow aio_wait, txc = " << txc
+	  dout(20) << __func__ << " slow aio_wait, txc = " << txc
 		  << ", latency = " << lat
 		  << dendl;
 	}
@@ -11807,7 +11807,7 @@ void BlueStore::_kv_sync_thread()
 	ceph::timespan dur_flush = after_flush - start;
 	ceph::timespan dur_kv = finish - after_flush;
 	ceph::timespan dur = finish - start;
-	dout(0) << __func__ << " committed " << committing_size
+	dout(10) << __func__ << " committed " << committing_size
 	  << " cleaned " << deferred_size
 	  << " in " << dur
 	  << " (" << dur_flush << " flush + " << dur_kv << " kv commit)"
@@ -11828,7 +11828,7 @@ void BlueStore::_kv_sync_thread()
 
       if (bluefs) {
 	if (!bluefs_extents_reclaiming.empty()) {
-	  dout(0) << __func__ << " releasing old bluefs 0x" << std::hex
+	  dout(10) << __func__ << " releasing old bluefs 0x" << std::hex
 		   << bluefs_extents_reclaiming << std::dec << dendl;
 	  int r = 0;
 	  if (cct->_conf->bdev_enable_discard && cct->_conf->bdev_async_discard) {
@@ -12185,7 +12185,7 @@ int BlueStore::queue_transactions(
   // prepare
   TransContext *txc = _txc_create(static_cast<Collection*>(ch.get()), osr,
 				  &on_commit);
- dout(10) << "###state1="<<txc->state<<dendl; // should be 0, STATE_PREPARE
+  //dout(10) << "###state1="<<txc->state<<dendl; // should be 0, STATE_PREPARE
   for (vector<Transaction>::iterator p = tls.begin(); p != tls.end(); ++p) {
     txc->bytes += (*p).get_num_bytes();
     _txc_add_transaction(txc, &(*p));
@@ -12246,7 +12246,7 @@ int BlueStore::queue_transactions(
   //txc->time_created = bs_start; 
   // execute (start)
   _txc_state_proc(txc);
-  dout(10) << "###state2="<<txc->state<<dendl; // should be 3, STATE_KV_QUEUED
+  //dout(10) << "###state2="<<txc->state<<dendl; // should be 3, STATE_KV_QUEUED
 
   // we're immediately readable (unlike FileStore)
   for (auto c : on_applied_sync) {
@@ -14810,7 +14810,7 @@ void BlueStore::log_latency(
   logger->tinc(idx, l);
   if (lat_threshold > 0.0 &&
       l >= make_timespan(lat_threshold)) {
-    dout(0) << __func__ << " slow operation observed for " << name
+    dout(10) << __func__ << " slow operation observed for " << name
       << ", latency = " << l
       << info
       << dendl;
@@ -14827,7 +14827,7 @@ void BlueStore::log_latency_fn(
   logger->tinc(idx, l);
   if (lat_threshold > 0.0 &&
       l >= make_timespan(lat_threshold)) {
-    dout(0) << __func__ << " slow operation observed for " << name
+    dout(10) << __func__ << " slow operation observed for " << name
       << ", latency = " << l
       << fn(l)
       << dendl;

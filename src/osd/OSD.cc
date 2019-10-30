@@ -10575,7 +10575,7 @@ void OSD::ShardedOpWQ::_process(uint32_t thread_index, heartbeat_handle_d *hb)
   
   // get the current # of requests from op_queue
   osd->logger->set(l_osd_op_queue_size, sdata->pqueue->get_size_slow()); 
-  dout(0) << __func__ << "### op_queue_size=" << sdata->pqueue->get_size_slow() << dendl;
+  //dout(0) << __func__ << "### op_queue_size=" << sdata->pqueue->get_size_slow() << dendl;
 
   // dequeue one request from priority queue(op_queue)
   OpQueueItem item = sdata->pqueue->dequeue();
