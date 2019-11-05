@@ -11605,7 +11605,7 @@ void BlueStore::_kv_sync_thread()
       /*for(auto t : kv_queue) {
           dout(0)<<"### kv_queue txc state=" << t->state <<dendl;
       }*/
-      dout(0) << __func__ << " kv_queue_size="<<kv_queue.size()<<dendl;
+      dout(1) << __func__ << " kv_queue_size="<<kv_queue.size()<<dendl;
       kvq_sum += kv_queue.size();
       kvq_count++;
       kvq_avg_size = kvq_sum / kvq_count; 
@@ -12100,7 +12100,9 @@ void BlueStore::_deferred_aio_finish(OpSequencer *osr)
 	costs += txc->cost;
       }
     }
-    throttle.release_deferred_throttle(costs);
+    if(cct->_conf->enable_throttle) {
+      throttle.release_deferred_throttle(costs);
+    }
   }
 
   {
@@ -12234,8 +12236,11 @@ int BlueStore::queue_transactions(
 	kv_cond.notify_one();
       }
     }
-    throttle.finish_start_transaction(*db, *txc, tstart);
+    if(cct->_conf->enable_throttle) {
+      throttle.finish_start_transaction(*db, *txc, tstart);
+    }
     --deferred_aggressive;
+    
   }
   auto tend = mono_clock::now();
 

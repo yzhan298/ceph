@@ -238,10 +238,11 @@ int do_bench(librbd::Image& image, io_type_t io_type,
                        io_type == IO_TYPE_WRITE ? "write" : "readwrite")
        << (io_type == IO_TYPE_RW ? " read:write=" +
            to_string(read_proportion) + ":" + to_string(100 - read_proportion) : "")
-       << " io_size " << io_size
-       << " io_threads " << io_threads
-       << " bytes " << io_bytes
-       << " pattern ";
+       << ", image size " << size
+       << ", io_size " << io_size
+       << ", io_threads " << io_threads
+       << ", bytes " << io_bytes
+       << ", pattern ";
   switch (io_pattern) {
   case IO_PATTERN_RAND:
     std::cout << "random";
