@@ -4344,7 +4344,7 @@ void BlueStore::_set_throttle_params()
     }
   }
 
-  dout(20) << __func__ << " throttle_cost_per_io " << throttle_cost_per_io
+  dout(0) << __func__ << " throttle_cost_per_io " << throttle_cost_per_io
 	   << dendl;
 }
 void BlueStore::_set_blob_size()
@@ -4809,7 +4809,7 @@ void BlueStore::_set_alloc_sizes(void)
       prefer_deferred_size = cct->_conf->bluestore_prefer_deferred_size_ssd;
     }
   }
-
+  dout(0)<<__func__<<" ### bluestore_prefer_deferred_size="<<prefer_deferred_size<<dendl;
   if (cct->_conf->bluestore_deferred_batch_ops) {
     deferred_batch_ops = cct->_conf->bluestore_deferred_batch_ops;
   } else {
@@ -6273,6 +6273,7 @@ int BlueStore::mkfs()
       min_alloc_size = cct->_conf->bluestore_min_alloc_size_ssd;
     }
   }
+  dout(0) <<__func__<<" ### min_alloc_size="<< min_alloc_size<<dendl;
   _validate_bdev();
 
   // make sure min_alloc_size is power of 2 aligned.

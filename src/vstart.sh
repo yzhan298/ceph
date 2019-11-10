@@ -685,7 +685,10 @@ EOF
 	bluestore_throttle_deferred_bytes = 670000
 	bluestore_throttle_cost_per_io = 0
 	bluestore_throttle_cost_per_io_hdd = 670000
-	bluestore_throttle_cost_per_io_ssd = 4000"
+	bluestore_throttle_cost_per_io_ssd = 4000
+	bluestore_min_alloc_size = 0
+	bluestore_max_alloc_size = 0
+	bluestore_prefer_deferred_size = 0"
         fi
     fi
     wconf <<EOF

@@ -7,7 +7,7 @@ qdepth=$1
 benchtool=$2
 
 # rados bench setting
-totaltime=120 # seconds
+totaltime=30 # seconds
 parallel=1
 sampling_time=2 # second(s)
 skip_first_n_sampling_points=0 # time=2*30=60s
@@ -15,7 +15,7 @@ skip_first_n_sampling_points=0 # time=2*30=60s
 # RBD bench setting
 RBD_IMAGE_NAME="bench1"
 iotype="write"
-iototal="10G"
+iototal="100M"
 iopattern="rand"
 
 # FIO bench setting
@@ -29,14 +29,15 @@ then
 fi
 
 run_name=test_${qdepth}
-osd_count=1
-shard_count=1
+osd_count=1  		# number of OSDs
+shard_count=1   	# number of sharded op_queue
 temp=/tmp/load-ceph.$$
 
 CURRENTDATE=`date +"%Y-%m-%d %T"`
 #DATA_OUT_FILE="res_${qdepth}_${time}.csv"
 DATA_OUT_FILE="dump-result-sampling.csv"
 DATA_TOTAL_FILE="result-single-dump.csv"
+CPU_MEM_DATA="dump-cpu-mem.csv"
 
 shard_name=""
 for i in $(seq 0 $(expr $shard_count - 1)); do
@@ -46,11 +47,13 @@ done
 printf "%s\n" ${CURRENTDATE} |  paste -sd ',' > ${DATA_OUT_FILE}
 printf '%s\n' "bs" "runtime" "concurrency" $shard_name "kvq_size" "avg_kvq_size" "bs_kv_sync_lat" "bs_service_lat" |  paste -sd ',' >> ${DATA_OUT_FILE} 
 
-#printf "%s\n" ${CURRENTDATE} |  paste -sd ',' > ${DATA_TOTAL_FILE}
+printf "%s\n" ${CURRENTDATE} |  paste -sd ',' > ${CPU_MEM_DATA}
+printf '%s\n' "total memory(KB)" "used memory(KB)" "free memory(KB)" "used CPU(%)" |  paste -sd ',' >> ${CPU_MEM_DATA}
 #printf '%s\n' "bs" "runtime" "concurrency" $shard_name "kvq_size" "avg_kvq_size" "bs_kv_sync_lat" "bs_service_lat" |  paste -sd ',' >> ${DATA_TOTAL_FILE}
 
 sudo bin/ceph daemon osd.0 perf reset osd >/dev/null 2>/dev/null
 
+# do_dump is for sampling. Change sampling_time to control sampling rate
 do_dump() {
     count=$1
     endtime=`date +%s.%N`
@@ -79,6 +82,7 @@ do_dump() {
 done
 }
 
+# single_dump is for collecting average values. One dump when benchmark finishes.
 single_dump() {
     for o in $(seq 0 $(expr $osd_count - 1)) ; do
 	dump_opq="dump.op_queue.single"
@@ -105,8 +109,25 @@ single_dump() {
 done
 }
 
+# get cpu and memory usage
+do_cpu_mem_dump() {
+	# get total memory (KB)
+	totalmem=$(free | grep Mem | awk '{print $2}')
 
+	# get used memory (KB)
+	usedmem=$(free | grep Mem | awk '{print $3}')
 
+	# get free memory (KB)
+	freemem=$(free | grep Mem | awk '{print $4}')
+
+	# get used CPU (%)
+	usedcpu=$(iostat | awk 'NR == 4 {print $1}')
+
+	printf '%s\n' $totalmem $usedmem $freemem $usedcpu | paste -sd ',' >> ${CPU_MEM_DATA}
+}
+
+# time_dump controls the rate of sampling. NOT use for avg latency.
+# ONLY use this when do_dump() for sampling.
 time_dump() {
     count=$1
     sleepsec=$2
@@ -116,6 +137,7 @@ time_dump() {
 		continue
 	fi
 	do_dump $i
+	do_cpu_mem_dump
 done
 }
 
@@ -123,9 +145,11 @@ sleep 5
 
 starttime=`date +%s.%N`
 
+# execute sampling
 samples=$(expr $totaltime/${sampling_time} | bc -l)
 time_dump $samples $sampling_time > dump &
 
+# BENCHMARKING
 for p in $(seq $parallel) ; do
     # rados bench
    case $benchtool in
@@ -143,6 +167,7 @@ done
 
 wait
 
+# single dump state
 single_dump > dump_${qdepth}.txt
 
 echo benchmark finished

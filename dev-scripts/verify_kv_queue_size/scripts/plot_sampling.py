@@ -11,7 +11,7 @@ plt.xlim(0)
 plt.ylim(0)
 plt.xlabel('Time')
 plt.ylabel('Op Queue Size')
-plt.savefig("dump_op_queue.png", bbox_inches='tight')
+plt.savefig("dump_op_queue_sampling.png", bbox_inches='tight')
 
 #check kv_queue_size
 plt.figure(2)
@@ -21,28 +21,22 @@ plt.xlim(0)
 plt.ylim(0)
 plt.xlabel('Time')
 plt.ylabel('Kv Queue Size')
-plt.savefig("dump_kv_queue.png", bbox_inches='tight')
+plt.savefig("dump_kv_queue_sampling.png", bbox_inches='tight')
 
-'''
-data1 = np.loadtxt('dump-result-single-dump.csv', delimiter=',', skiprows=2, unpack=True)
-# check kv_queue_size vs bluestore latency(from KV_PREPARED TO KV_FINISHED)
+# plot every kv_queue size from osd.log
+data1 = np.loadtxt('dump-kvq-size.csv', unpack=True)
 plt.figure(3)
-plt.plot(data1[5], data1[7], 'bo-')
-plt.title('BlueStore Latency vs KV Queue Size')
+plt.plot(data1, 'bo')
+plt.title('BlueStore Every KV Queue Size')
 plt.xlim(0)
 plt.ylim(0)
-plt.xlabel('Average KV Queue Size')
-plt.ylabel('Average BlueStore Latency')
-plt.savefig("dump_avgkvq_vs_bslat.png", bbox_inches='tight')
+#plt.xlabel('')
+plt.ylabel('Every KV Queue Size')
+plt.savefig("dump_every_kvq_size.png", bbox_inches='tight')
 
-# check kv_queue_size vs bluestore kv_sync_latency
-plt.figure(3)
-plt.plot(data1[5], data1[6], 'bo-')
-plt.title('BlueStore KV Sync Latency vs KV Queue Size')
-plt.xlim(0)
-plt.ylim(0)
-plt.xlabel('Average KV Queue Size')
-plt.ylabel('Average BlueStore KV Sync Latency')
-plt.savefig("dump_avgkvq_vs_kvlat.png", bbox_inches='tight')
-'''
+# histogram of kv_queue size
+plt.figure(4)
+n, bins, patches = plt.hist(data1, bins=5, color='#0504aa',alpha=0.7, rwidth=0.85)
+plt.savefig("dump_kvq_hist.png", bbox_inches='tight')
+
 #plt.show()

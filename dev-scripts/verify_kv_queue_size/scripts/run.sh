@@ -28,6 +28,10 @@ if [ $benchtool = "rados" ]
 then
     ./collect_data_from_rados_bench.sh
 fi
+
+# collect kv_queue from osd.log
+./collect_kvq_from_log.sh
+
 # plot with python
 # run this command for first time:
 #echo "backend: Agg" > ~/.config/matplotlib/matplotlibrc
