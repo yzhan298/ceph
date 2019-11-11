@@ -4487,6 +4487,8 @@ void BlueStore::_init_logger()
 		 "kf_l", PerfCountersBuilder::PRIO_INTERESTING);
   b.add_time_avg(l_bluestore_service_lat, "bluestore_service_lat",
 		 "avg time from state KV_PREPARED to KV_FINISHED(total time for a txc in BlueStore)");
+  b.add_time_avg(l_bluestore_kvq_lat,"bluestore_kvq_lat",
+		  "the average time for a txc in kv_queue");
   b.add_time_avg(l_bluestore_state_prepare_lat, "state_prepare_lat",
     "Average prepare state latency");
   b.add_time_avg(l_bluestore_state_aio_wait_lat, "state_aio_wait_lat",
@@ -10907,9 +10909,10 @@ void BlueStore::_txc_calc_cost(TransContext *txc)
   // one "io" for the kv commit
   auto ios = 1 + txc->ioc.get_num_ios();
   auto cost = throttle_cost_per_io.load();
-  txc->cost = ios * cost + txc->bytes;
+  //txc->cost = ios * cost + txc->bytes;
+  txc->cost = ios * cost; // this is for testing!
   txc->ios = ios;
-  dout(10) << __func__ << " " << txc << " cost " << txc->cost << " ("
+  dout(0) << __func__ << " " << txc << " cost " << txc->cost << " ("
 	   << ios << " ios * " << cost << " + " << txc->bytes
 	   << " bytes)" << dendl;
 }
@@ -11013,6 +11016,7 @@ void BlueStore::_txc_state_proc(TransContext *txc)
       {
 	std::lock_guard l(kv_lock);
 	kv_queue.push_back(txc);
+	txc->time_kvq_in = ceph_clock_now();
 	if (!kv_sync_in_progress) {
 	  kv_sync_in_progress = true;
 	  kv_cond.notify_one();
@@ -11614,8 +11618,13 @@ void BlueStore::_kv_sync_thread()
       kvq_sum += kv_queue.size();
       kvq_count++;
       kvq_avg_size = kvq_sum / kvq_count; 
+      for (auto txc : kv_queue) {
+	txc->time_kvq_out = ceph_clock_now();
+	logger->tinc(l_bluestore_kvq_lat, txc->time_kvq_out - txc->time_kvq_in);
+      }
       logger->set(l_bluestore_kv_queue_size, kv_queue.size());
       logger->set(l_bluestore_kv_queue_avg_size, kvq_avg_size);
+      //logger->tinc(l_bluestore_kvq_lat, txc->time_kvq_out - txc->time_kvq_in);
 
       kv_committing.swap(kv_queue);
       kv_submitting.swap(kv_queue_unsubmitted);
