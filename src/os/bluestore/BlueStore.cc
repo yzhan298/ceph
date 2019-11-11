@@ -4344,7 +4344,7 @@ void BlueStore::_set_throttle_params()
     }
   }
 
-  dout(0) << __func__ << " throttle_cost_per_io " << throttle_cost_per_io
+  dout(10) << __func__ << " throttle_cost_per_io " << throttle_cost_per_io
 	   << dendl;
 }
 void BlueStore::_set_blob_size()
@@ -4809,7 +4809,11 @@ void BlueStore::_set_alloc_sizes(void)
       prefer_deferred_size = cct->_conf->bluestore_prefer_deferred_size_ssd;
     }
   }
-  dout(0)<<__func__<<" ### bluestore_prefer_deferred_size="<<prefer_deferred_size<<dendl;
+  dout(10)<<__func__<<" bluestore_prefer_deferred_size="<<prefer_deferred_size<<
+	  ", throttle get max="<<throttle.throttle_get_max()<<
+	  ", throttle get current="<<throttle.throttle_get_current()<<
+	  ", throttle deferred get max="<<throttle.throttle_deferred_get_max()<<
+	  ", throttle deferred get current="<<throttle.throttle_deferred_get_current()<<dendl;
   if (cct->_conf->bluestore_deferred_batch_ops) {
     deferred_batch_ops = cct->_conf->bluestore_deferred_batch_ops;
   } else {
@@ -12102,6 +12106,7 @@ void BlueStore::_deferred_aio_finish(OpSequencer *osr)
       }
     }
     if(cct->_conf->enable_throttle) {
+      //throttle_deferred_bytes.put(cost);
       throttle.release_deferred_throttle(costs);
     }
   }
@@ -12218,8 +12223,8 @@ int BlueStore::queue_transactions(
   if(cct->_conf->enable_throttle) {
     //dout(0)<<__func__<<" ### bluestore throttle get called!" << dendl;
     throttle.get_throttle(txc->cost);
-  }
-
+  //}
+  
   if (!throttle.try_start_transaction(
 	*db,
 	*txc,
@@ -12241,8 +12246,9 @@ int BlueStore::queue_transactions(
       throttle.finish_start_transaction(*db, *txc, tstart);
     }
     --deferred_aggressive;
-    
   }
+  } // enable_throttle
+
   auto tend = mono_clock::now();
 
   if (handle)

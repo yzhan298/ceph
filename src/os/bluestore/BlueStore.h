@@ -1674,7 +1674,18 @@ public:
     void complete_kv(TransContext &txc) {}
     void complete(TransContext &txc) {}
 #endif
-
+    int64_t throttle_get_current() const {
+	return throttle_bytes.get_current();
+    }
+    int64_t throttle_deferred_get_current() const {
+	return throttle_deferred_bytes.get_current();
+    }
+    int64_t throttle_get_max() const {
+	return throttle_bytes.get_max();
+    }
+    int64_t throttle_deferred_get_max() const {
+	return throttle_deferred_bytes.get_max();
+    } 
     utime_t log_state_latency(
       TransContext &txc, PerfCounters *logger, int state);
     bool try_start_transaction(
