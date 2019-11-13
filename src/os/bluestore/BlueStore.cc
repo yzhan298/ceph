@@ -4486,7 +4486,7 @@ void BlueStore::_init_logger()
 		 "Average kv_finalize thread latency",
 		 "kf_l", PerfCountersBuilder::PRIO_INTERESTING);
   b.add_time_avg(l_bluestore_service_lat, "bluestore_service_lat",
-		 "avg time from state KV_PREPARED to KV_FINISHED(total time for a txc in BlueStore)");
+		 "avg time from state STATE_PREPARED to STATE_DONE(total time for a txc in BlueStore. Include simple write and deferred write.)");
   b.add_time_avg(l_bluestore_kvq_lat,"bluestore_kvq_lat",
 		  "the average time for a txc in kv_queue");
   b.add_time_avg(l_bluestore_state_prepare_lat, "state_prepare_lat",
@@ -6279,7 +6279,7 @@ int BlueStore::mkfs()
       min_alloc_size = cct->_conf->bluestore_min_alloc_size_ssd;
     }
   }
-  dout(0) <<__func__<<" ### min_alloc_size="<< min_alloc_size<<dendl;
+  //dout(0) <<__func__<<" ### min_alloc_size="<< min_alloc_size<<dendl;
   _validate_bdev();
 
   // make sure min_alloc_size is power of 2 aligned.
@@ -10912,7 +10912,7 @@ void BlueStore::_txc_calc_cost(TransContext *txc)
   //txc->cost = ios * cost + txc->bytes;
   txc->cost = ios * cost; // this is for testing!
   txc->ios = ios;
-  dout(0) << __func__ << " " << txc << " cost " << txc->cost << " ("
+  dout(10) << __func__ << " " << txc << " cost " << txc->cost << " ("
 	   << ios << " ios * " << cost << " + " << txc->bytes
 	   << " bytes)" << dendl;
 }
@@ -11051,8 +11051,6 @@ void BlueStore::_txc_state_proc(TransContext *txc)
 
     case TransContext::STATE_FINISHING:
       throttle.log_state_latency(*txc, logger, l_bluestore_state_finishing_lat);
-      txc->time_finished = ceph_clock_now();
-      logger->tinc(l_bluestore_service_lat, txc->time_finished - txc->time_created); 
       _txc_finish(txc);
       return;
 
@@ -11307,7 +11305,8 @@ void BlueStore::_txc_finish(TransContext *txc)
 	}
         break;
       }
-
+      txc->time_finished = ceph_clock_now();
+      logger->tinc(l_bluestore_service_lat, txc->time_finished - txc->time_created);
       osr->q.pop_front();
       releasing_txc.push_back(*txc);
     }
@@ -11618,10 +11617,20 @@ void BlueStore::_kv_sync_thread()
       kvq_sum += kv_queue.size();
       kvq_count++;
       kvq_avg_size = kvq_sum / kvq_count; 
+      utime_t avg_kvq_lat_sum;
+      utime_t avg_kvq_lat;
       for (auto txc : kv_queue) {
 	txc->time_kvq_out = ceph_clock_now();
 	logger->tinc(l_bluestore_kvq_lat, txc->time_kvq_out - txc->time_kvq_in);
+	auto kvq_lat = txc->time_kvq_out - txc->time_kvq_in;
+	avg_kvq_lat_sum += kvq_lat;  
       }
+      if(kv_queue.size() == 0) {
+	avg_kvq_lat = 0;
+      }else {
+      	avg_kvq_lat = avg_kvq_lat_sum / kv_queue.size();
+      }
+      dout(1) << __func__ << " avg_kv_queue_lat="<< avg_kvq_lat << dendl;
       logger->set(l_bluestore_kv_queue_size, kv_queue.size());
       logger->set(l_bluestore_kv_queue_avg_size, kvq_avg_size);
       //logger->tinc(l_bluestore_kvq_lat, txc->time_kvq_out - txc->time_kvq_in);
@@ -12867,7 +12876,7 @@ void BlueStore::_do_write_small(
 
 	  if (!g_conf()->bluestore_debug_omit_block_device_write) {
 	    if (b_len <= prefer_deferred_size) {
-	      dout(20) << __func__ << " deferring small 0x" << std::hex
+	      dout(0) << __func__ << " deferring small 0x" << std::hex
 		       << b_len << std::dec << " unused write via deferred" << dendl;
 	      bluestore_deferred_op_t *op = _get_deferred_op(txc);
 	      op->op = bluestore_deferred_op_t::OP_WRITE;
@@ -14980,6 +14989,7 @@ void BlueStore::BlueStoreThrottle::finish_start_transaction(
   mono_clock::time_point start_throttle_acquire)
 {
   ceph_assert(txc.deferred_txn);
+  //if(cct->_conf->enable_throttle) {
   throttle_deferred_bytes.get(txc.cost);
   emit_initial_tracepoint(db, txc, start_throttle_acquire);
 }

@@ -4,9 +4,9 @@
 #for qd in 1 4 8 16 32 48 64 80 96 112 128 144 160 256; do
 #for qd in 1 4 ;do
 #for bt in "rados" "rbd" "fio"; do
-for bt in "rados"; do
-    for qd in 1 4 8 16 32 48 64 80 96 112 128; do
-    #for qd in 1 4 ;do
+for bt in "rbd"; do
+    #for qd in 1 4 8 16 32 48 64 80 96 112 128; do
+    for qd in 32 64 96 128;do
 	./run.sh $qd $bt
     done
     python plot_single_dump.py
