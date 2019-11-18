@@ -11628,11 +11628,11 @@ void BlueStore::_kv_sync_thread()
       if(kv_queue.size() == 0) {
 	avg_kvq_lat = 0;
       }else {
-      	avg_kvq_lat = avg_kvq_lat_sum / kv_queue.size();
+      	//avg_kvq_lat = avg_kvq_lat_sum / kv_queue.size();
       }
       dout(1) << __func__ << " avg_kv_queue_lat="<< avg_kvq_lat << dendl;
       logger->set(l_bluestore_kv_queue_size, kv_queue.size());
-      logger->set(l_bluestore_kv_queue_avg_size, kvq_avg_size);
+      //logger->set(l_bluestore_kv_queue_avg_size, kvq_avg_size);
       //logger->tinc(l_bluestore_kvq_lat, txc->time_kvq_out - txc->time_kvq_in);
 
       kv_committing.swap(kv_queue);
