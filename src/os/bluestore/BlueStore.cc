@@ -11630,7 +11630,7 @@ void BlueStore::_kv_sync_thread()
       }else {
       	//avg_kvq_lat = avg_kvq_lat_sum / kv_queue.size();
       }
-      dout(1) << __func__ << " avg_kv_queue_lat="<< avg_kvq_lat << dendl;
+      //dout(1) << __func__ << " avg_kv_queue_lat="<< avg_kvq_lat << dendl;
       logger->set(l_bluestore_kv_queue_size, kv_queue.size());
       //logger->set(l_bluestore_kv_queue_avg_size, kvq_avg_size);
       //logger->tinc(l_bluestore_kvq_lat, txc->time_kvq_out - txc->time_kvq_in);
@@ -12240,32 +12240,32 @@ int BlueStore::queue_transactions(
   // take cost from budget
   if(cct->_conf->enable_throttle) {
     //dout(0)<<__func__<<" ### bluestore throttle get called!" << dendl;
-    throttle.get_throttle(txc->cost);
-  //}
+    //throttle.get_throttle(txc->cost); // it's called in try_start_transaction
+
   
-  if (!throttle.try_start_transaction(
+    if (!throttle.try_start_transaction(
 	*db,
 	*txc,
 	tstart)) {
-    // ensure we do not block here because of deferred writes
-    dout(10) << __func__ << " failed get throttle_deferred_bytes, aggressive"
+      // ensure we do not block here because of deferred writes
+      dout(10) << __func__ << " failed get throttle_deferred_bytes, aggressive"
 	     << dendl;
-    ++deferred_aggressive;
-    deferred_try_submit();
-    {
-      // wake up any previously finished deferred events
-      std::lock_guard l(kv_lock);
-      if (!kv_sync_in_progress) {
-	kv_sync_in_progress = true;
-	kv_cond.notify_one();
+      ++deferred_aggressive;
+      deferred_try_submit();
+      {
+        // wake up any previously finished deferred events
+        std::lock_guard l(kv_lock);
+        if (!kv_sync_in_progress) {
+  	  kv_sync_in_progress = true;
+  	  kv_cond.notify_one();
+        }
       }
+      if(cct->_conf->enable_throttle) {
+        throttle.finish_start_transaction(*db, *txc, tstart);
+      }
+      --deferred_aggressive;
     }
-    if(cct->_conf->enable_throttle) {
-      throttle.finish_start_transaction(*db, *txc, tstart);
-    }
-    --deferred_aggressive;
-  }
-  } // enable_throttle
+  } // enable_throttle end
 
   auto tend = mono_clock::now();
 
@@ -14973,7 +14973,7 @@ bool BlueStore::BlueStoreThrottle::try_start_transaction(
   TransContext &txc,
   mono_clock::time_point start_throttle_acquire)
 {
-  //throttle_bytes.get(txc.cost);
+  throttle_bytes.get(txc.cost);
 
   if (!txc.deferred_txn || throttle_deferred_bytes.get_or_fail(txc.cost)) {
     emit_initial_tracepoint(db, txc, start_throttle_acquire);
