@@ -1,0 +1,1102 @@
+{
+    "AsyncMessenger::Worker-0": {
+        "msgr_recv_messages": 6833,
+        "msgr_send_messages": 6827,
+        "msgr_recv_bytes": 30487736,
+        "msgr_send_bytes": 2190357,
+        "msgr_created_connections": 4,
+        "msgr_active_connections": 1,
+        "msgr_running_total_time": 1.310844376,
+        "msgr_running_send_time": 0.273984728,
+        "msgr_running_recv_time": 0.409288979,
+        "msgr_running_fast_dispatch_time": 0.580628611,
+        "msgr_send_messages_queue_lat": {
+            "avgcount": 6827,
+            "sum": 3.580457737,
+            "avgtime": 0.000524455
+        },
+        "msgr_handle_ack_lat": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        }
+    },
+    "AsyncMessenger::Worker-1": {
+        "msgr_recv_messages": 15,
+        "msgr_send_messages": 139,
+        "msgr_recv_bytes": 48420,
+        "msgr_send_bytes": 20677,
+        "msgr_created_connections": 3,
+        "msgr_active_connections": 1,
+        "msgr_running_total_time": 0.019668331,
+        "msgr_running_send_time": 0.007193585,
+        "msgr_running_recv_time": 0.011973630,
+        "msgr_running_fast_dispatch_time": 0.002454841,
+        "msgr_send_messages_queue_lat": {
+            "avgcount": 139,
+            "sum": 0.010352454,
+            "avgtime": 0.000074478
+        },
+        "msgr_handle_ack_lat": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        }
+    },
+    "AsyncMessenger::Worker-2": {
+        "msgr_recv_messages": 1,
+        "msgr_send_messages": 11,
+        "msgr_recv_bytes": 86,
+        "msgr_send_bytes": 403781,
+        "msgr_created_connections": 3,
+        "msgr_active_connections": 1,
+        "msgr_running_total_time": 0.012807751,
+        "msgr_running_send_time": 0.006720932,
+        "msgr_running_recv_time": 0.005823061,
+        "msgr_running_fast_dispatch_time": 0.000000000,
+        "msgr_send_messages_queue_lat": {
+            "avgcount": 11,
+            "sum": 0.005582663,
+            "avgtime": 0.000507514
+        },
+        "msgr_handle_ack_lat": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        }
+    },
+    "bluefs": {
+        "gift_bytes": 0,
+        "reclaim_bytes": 0,
+        "db_total_bytes": 1073733632,
+        "db_used_bytes": 67100672,
+        "wal_total_bytes": 1048571904,
+        "wal_used_bytes": 19918848,
+        "slow_total_bytes": 43980488704,
+        "slow_used_bytes": 0,
+        "num_files": 11,
+        "log_bytes": 3850240,
+        "log_compactions": 0,
+        "logged_bytes": 61440,
+        "files_written_wal": 1,
+        "files_written_sst": 1,
+        "bytes_written_wal": 11399088,
+        "bytes_written_sst": 33728527,
+        "bytes_written_slow": 0,
+        "max_bytes_wal": 19918848,
+        "max_bytes_db": 69197824,
+        "max_bytes_slow": 0,
+        "read_random_count": 4240,
+        "read_random_bytes": 17656937,
+        "read_random_disk_count": 1211,
+        "read_random_disk_bytes": 5821015,
+        "read_random_buffer_count": 3030,
+        "read_random_buffer_bytes": 11835922,
+        "read_count": 4856,
+        "read_bytes": 112323286,
+        "read_prefetch_count": 2066,
+        "read_prefetch_bytes": 47706966
+    },
+    "bluestore": {
+        "kv_flush_lat": {
+            "avgcount": 553,
+            "sum": 0.862977336,
+            "avgtime": 0.001560537
+        },
+        "kv_commit_lat": {
+            "avgcount": 553,
+            "sum": 15.146216685,
+            "avgtime": 0.027389180
+        },
+        "kv_sync_lat": {
+            "avgcount": 553,
+            "sum": 16.009194021,
+            "avgtime": 0.028949717
+        },
+        "kv_final_lat": {
+            "avgcount": 553,
+            "sum": 0.591695215,
+            "avgtime": 0.001069973
+        },
+        "bluestore_service_lat": {
+            "avgcount": 8217,
+            "sum": 3149609901.931491598,
+            "avgtime": 383304.113658450
+        },
+        "bluestore_kvq_lat": {
+            "avgcount": 8215,
+            "sum": 511.489501039,
+            "avgtime": 0.062262872
+        },
+        "state_prepare_lat": {
+            "avgcount": 8216,
+            "sum": 3.007471722,
+            "avgtime": 0.000366050
+        },
+        "state_aio_wait_lat": {
+            "avgcount": 8216,
+            "sum": 42.994996680,
+            "avgtime": 0.005233081
+        },
+        "state_io_done_lat": {
+            "avgcount": 8216,
+            "sum": 2.413995158,
+            "avgtime": 0.000293816
+        },
+        "state_kv_queued_lat": {
+            "avgcount": 8215,
+            "sum": 543.406006697,
+            "avgtime": 0.066148022
+        },
+        "bluestore_kv_queue_size": 1,
+        "bluestore_kv_queue_avg_size": 14,
+        "state_kv_commiting_lat": {
+            "avgcount": 8215,
+            "sum": 181.742882486,
+            "avgtime": 0.022123296
+        },
+        "state_kv_done_lat": {
+            "avgcount": 8217,
+            "sum": 0.015126042,
+            "avgtime": 0.000001840
+        },
+        "state_deferred_queued_lat": {
+            "avgcount": 6,
+            "sum": 5.247413641,
+            "avgtime": 0.874568940
+        },
+        "state_deferred_aio_wait_lat": {
+            "avgcount": 6,
+            "sum": 0.004786573,
+            "avgtime": 0.000797762
+        },
+        "state_deferred_cleanup_lat": {
+            "avgcount": 6,
+            "sum": 4.715038920,
+            "avgtime": 0.785839820
+        },
+        "state_finishing_lat": {
+            "avgcount": 8217,
+            "sum": 0.004275209,
+            "avgtime": 0.000000520
+        },
+        "state_done_lat": {
+            "avgcount": 8217,
+            "sum": 0.294016459,
+            "avgtime": 0.000035781
+        },
+        "throttle_lat": {
+            "avgcount": 8216,
+            "sum": 0.226055222,
+            "avgtime": 0.000027514
+        },
+        "submit_lat": {
+            "avgcount": 8216,
+            "sum": 3.304626110,
+            "avgtime": 0.000402218
+        },
+        "commit_lat": {
+            "avgcount": 8215,
+            "sum": 773.571545574,
+            "avgtime": 0.094165738
+        },
+        "read_lat": {
+            "avgcount": 115,
+            "sum": 0.012798870,
+            "avgtime": 0.000111294
+        },
+        "read_onode_meta_lat": {
+            "avgcount": 234,
+            "sum": 0.000994458,
+            "avgtime": 0.000004249
+        },
+        "read_wait_aio_lat": {
+            "avgcount": 119,
+            "sum": 0.009325599,
+            "avgtime": 0.000078366
+        },
+        "compress_lat": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "decompress_lat": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "csum_lat": {
+            "avgcount": 4,
+            "sum": 0.000033030,
+            "avgtime": 0.000008257
+        },
+        "compress_success_count": 0,
+        "compress_rejected_count": 0,
+        "write_pad_bytes": 45475,
+        "deferred_write_ops": 6,
+        "deferred_write_bytes": 24576,
+        "write_penalty_read_ops": 4,
+        "bluestore_allocated": 2260074496,
+        "bluestore_stored": 136606009,
+        "bluestore_compressed": 0,
+        "bluestore_compressed_allocated": 0,
+        "bluestore_compressed_original": 0,
+        "bluestore_onodes": 19721,
+        "bluestore_onode_hits": 20960,
+        "bluestore_onode_misses": 26552,
+        "bluestore_onode_shard_hits": 0,
+        "bluestore_onode_shard_misses": 0,
+        "bluestore_extents": 6838,
+        "bluestore_blobs": 6838,
+        "bluestore_buffers": 2,
+        "bluestore_buffer_bytes": 8192,
+        "bluestore_buffer_hit_bytes": 42051,
+        "bluestore_buffer_miss_bytes": 4587,
+        "bluestore_write_big": 0,
+        "bluestore_write_big_bytes": 0,
+        "bluestore_write_big_blobs": 0,
+        "bluestore_write_small": 6844,
+        "bluestore_write_small_bytes": 27986153,
+        "bluestore_write_small_unused": 0,
+        "bluestore_write_small_deferred": 8,
+        "bluestore_write_small_pre_read": 8,
+        "bluestore_write_small_new": 6836,
+        "bluestore_txc": 8216,
+        "bluestore_onode_reshard": 0,
+        "bluestore_blob_split": 0,
+        "bluestore_extent_compress": 4,
+        "bluestore_gc_merged": 0,
+        "bluestore_read_eio": 0,
+        "bluestore_reads_with_retries": 0,
+        "bluestore_fragmentation_micros": 1,
+        "omap_seek_to_first_lat": {
+            "avgcount": 109,
+            "sum": 0.004676248,
+            "avgtime": 0.000042901
+        },
+        "omap_upper_bound_lat": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "omap_lower_bound_lat": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "omap_next_lat": {
+            "avgcount": 39985,
+            "sum": 0.134219067,
+            "avgtime": 0.000003356
+        },
+        "clist_lat": {
+            "avgcount": 545,
+            "sum": 0.236096576,
+            "avgtime": 0.000433204
+        }
+    },
+    "cct": {
+        "total_workers": 1,
+        "unhealthy_workers": 0
+    },
+    "finisher-commit_finisher": {
+        "queue_len": 0,
+        "complete_latency": {
+            "avgcount": 4,
+            "sum": 0.019842360,
+            "avgtime": 0.004960590
+        }
+    },
+    "finisher-objecter-finisher-0": {
+        "queue_len": 0,
+        "complete_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        }
+    },
+    "mempool": {
+        "bloom_filter_bytes": 0,
+        "bloom_filter_items": 0,
+        "bluestore_alloc_bytes": 4243632,
+        "bluestore_alloc_items": 530454,
+        "bluestore_cache_data_bytes": 8192,
+        "bluestore_cache_data_items": 2,
+        "bluestore_cache_onode_bytes": 13543920,
+        "bluestore_cache_onode_items": 18811,
+        "bluestore_cache_other_bytes": 9861518,
+        "bluestore_cache_other_items": 1581135,
+        "bluestore_fsck_bytes": 0,
+        "bluestore_fsck_items": 0,
+        "bluestore_txc_bytes": 53760,
+        "bluestore_txc_items": 64,
+        "bluestore_writing_deferred_bytes": 0,
+        "bluestore_writing_deferred_items": 0,
+        "bluestore_writing_bytes": 274432,
+        "bluestore_writing_items": 67,
+        "bluefs_bytes": 5904,
+        "bluefs_items": 109,
+        "buffer_anon_bytes": 2256302,
+        "buffer_anon_items": 46,
+        "buffer_meta_bytes": 17424,
+        "buffer_meta_items": 198,
+        "osd_bytes": 3160632,
+        "osd_items": 237,
+        "osd_mapbl_bytes": 0,
+        "osd_mapbl_items": 0,
+        "osd_pglog_bytes": 24320232,
+        "osd_pglog_items": 51163,
+        "osdmap_bytes": 11944,
+        "osdmap_items": 56,
+        "osdmap_mapping_bytes": 0,
+        "osdmap_mapping_items": 0,
+        "pgmap_bytes": 0,
+        "pgmap_items": 0,
+        "mds_co_bytes": 0,
+        "mds_co_items": 0,
+        "unittest_1_bytes": 0,
+        "unittest_1_items": 0,
+        "unittest_2_bytes": 0,
+        "unittest_2_items": 0
+    },
+    "objecter": {
+        "op_active": 0,
+        "op_laggy": 0,
+        "op_send": 0,
+        "op_send_bytes": 0,
+        "op_resend": 0,
+        "op_reply": 0,
+        "op": 0,
+        "op_r": 0,
+        "op_w": 0,
+        "op_rmw": 0,
+        "op_pg": 0,
+        "osdop_stat": 0,
+        "osdop_create": 0,
+        "osdop_read": 0,
+        "osdop_write": 0,
+        "osdop_writefull": 0,
+        "osdop_writesame": 0,
+        "osdop_append": 0,
+        "osdop_zero": 0,
+        "osdop_truncate": 0,
+        "osdop_delete": 0,
+        "osdop_mapext": 0,
+        "osdop_sparse_read": 0,
+        "osdop_clonerange": 0,
+        "osdop_getxattr": 0,
+        "osdop_setxattr": 0,
+        "osdop_cmpxattr": 0,
+        "osdop_rmxattr": 0,
+        "osdop_resetxattrs": 0,
+        "osdop_call": 0,
+        "osdop_watch": 0,
+        "osdop_notify": 0,
+        "osdop_src_cmpxattr": 0,
+        "osdop_pgls": 0,
+        "osdop_pgls_filter": 0,
+        "osdop_other": 0,
+        "linger_active": 0,
+        "linger_send": 0,
+        "linger_resend": 0,
+        "linger_ping": 0,
+        "poolop_active": 0,
+        "poolop_send": 0,
+        "poolop_resend": 0,
+        "poolstat_active": 0,
+        "poolstat_send": 0,
+        "poolstat_resend": 0,
+        "statfs_active": 0,
+        "statfs_send": 0,
+        "statfs_resend": 0,
+        "command_active": 0,
+        "command_send": 0,
+        "command_resend": 0,
+        "map_epoch": 2803,
+        "map_full": 0,
+        "map_inc": 4,
+        "osd_sessions": 0,
+        "osd_session_open": 0,
+        "osd_session_close": 0,
+        "osd_laggy": 0,
+        "omap_wr": 0,
+        "omap_rd": 0,
+        "omap_del": 0
+    },
+    "osd": {
+        "op_wip": 2,
+        "op": 6827,
+        "op_in_bytes": 27963392,
+        "op_out_bytes": 0,
+        "op_latency": {
+            "avgcount": 6827,
+            "sum": 896.053996681,
+            "avgtime": 0.131251500
+        },
+        "op_process_latency": {
+            "avgcount": 6827,
+            "sum": 760.967827970,
+            "avgtime": 0.111464454
+        },
+        "op_prepare_latency": {
+            "avgcount": 6828,
+            "sum": 4.795024452,
+            "avgtime": 0.000702259
+        },
+        "op_r": 0,
+        "op_r_out_bytes": 0,
+        "op_r_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "op_r_process_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "op_r_prepare_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "op_w": 6827,
+        "op_w_in_bytes": 27963392,
+        "op_w_latency": {
+            "avgcount": 6827,
+            "sum": 896.053996681,
+            "avgtime": 0.131251500
+        },
+        "op_w_process_latency": {
+            "avgcount": 6827,
+            "sum": 760.967827970,
+            "avgtime": 0.111464454
+        },
+        "op_w_prepare_latency": {
+            "avgcount": 6829,
+            "sum": 4.795840417,
+            "avgtime": 0.000702275
+        },
+        "op_rw": 0,
+        "op_rw_in_bytes": 0,
+        "op_rw_out_bytes": 0,
+        "op_rw_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "op_rw_process_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "op_rw_prepare_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "op_before_queue_op_lat": {
+            "avgcount": 6837,
+            "sum": 0.539830426,
+            "avgtime": 0.000078957
+        },
+        "op_before_dequeue_op_lat": {
+            "avgcount": 6830,
+            "sum": 135.088370516,
+            "avgtime": 0.019778677
+        },
+        "op_queue_size": 8,
+        "subop": 0,
+        "subop_in_bytes": 0,
+        "subop_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "subop_w": 0,
+        "subop_w_in_bytes": 0,
+        "subop_w_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "subop_pull": 0,
+        "subop_pull_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "subop_push": 0,
+        "subop_push_in_bytes": 0,
+        "subop_push_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "pull": 0,
+        "push": 0,
+        "push_out_bytes": 0,
+        "recovery_ops": 0,
+        "recovery_bytes": 0,
+        "loadavg": 237,
+        "cached_crc": 0,
+        "cached_crc_adjusted": 0,
+        "missed_crc": 0,
+        "numpg": 237,
+        "numpg_primary": 128,
+        "numpg_replica": 0,
+        "numpg_stray": 109,
+        "numpg_removing": 109,
+        "heartbeat_to_peers": 0,
+        "map_messages": 3,
+        "map_message_epochs": 5,
+        "map_message_epoch_dups": 3,
+        "messages_delayed_for_map": 0,
+        "osd_map_cache_hit": 478,
+        "osd_map_cache_miss": 0,
+        "osd_map_cache_miss_low": 0,
+        "osd_map_cache_miss_low_avg": {
+            "avgcount": 0,
+            "sum": 0
+        },
+        "osd_map_bl_cache_hit": 0,
+        "osd_map_bl_cache_miss": 2,
+        "stat_bytes": 1100585361408,
+        "stat_bytes_used": 4403224576,
+        "stat_bytes_avail": 1096182136832,
+        "copyfrom": 0,
+        "tier_promote": 0,
+        "tier_flush": 0,
+        "tier_flush_fail": 0,
+        "tier_try_flush": 0,
+        "tier_try_flush_fail": 0,
+        "tier_evict": 0,
+        "tier_whiteout": 0,
+        "tier_dirty": 6829,
+        "tier_clean": 0,
+        "tier_delay": 0,
+        "tier_proxy_read": 0,
+        "tier_proxy_write": 0,
+        "agent_wake": 0,
+        "agent_skip": 0,
+        "agent_flush": 0,
+        "agent_evict": 0,
+        "object_ctx_cache_hit": 0,
+        "object_ctx_cache_total": 6830,
+        "op_cache_hit": 0,
+        "osd_tier_flush_lat": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "osd_tier_promote_lat": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "osd_tier_r_lat": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "osd_pg_info": 7213,
+        "osd_pg_fastinfo": 6701,
+        "osd_pg_biginfo": 256
+    },
+    "prioritycache-0x560e59015c20": {
+        "target_bytes": 4294967296,
+        "mapped_bytes": 180559872,
+        "unmapped_bytes": 344064,
+        "heap_bytes": 180903936,
+        "cache_bytes": 2845415832
+    },
+    "prioritycache:data": {
+        "pri0_bytes": 0,
+        "pri1_bytes": 0,
+        "pri2_bytes": 0,
+        "pri3_bytes": 0,
+        "pri4_bytes": 0,
+        "pri5_bytes": 0,
+        "pri6_bytes": 0,
+        "pri7_bytes": 0,
+        "pri8_bytes": 0,
+        "pri9_bytes": 0,
+        "pri10_bytes": 0,
+        "pri11_bytes": 389602637,
+        "reserved_bytes": 281486003,
+        "committed_bytes": 671088640
+    },
+    "prioritycache:kv": {
+        "pri0_bytes": 1081984,
+        "pri1_bytes": 17752032,
+        "pri2_bytes": 0,
+        "pri3_bytes": 0,
+        "pri4_bytes": 0,
+        "pri5_bytes": 0,
+        "pri6_bytes": 0,
+        "pri7_bytes": 0,
+        "pri8_bytes": 0,
+        "pri9_bytes": 0,
+        "pri10_bytes": 0,
+        "pri11_bytes": 779205276,
+        "reserved_bytes": 275702532,
+        "committed_bytes": 1073741824
+    },
+    "prioritycache:meta": {
+        "pri0_bytes": 0,
+        "pri1_bytes": 22930610,
+        "pri2_bytes": 0,
+        "pri3_bytes": 0,
+        "pri4_bytes": 0,
+        "pri5_bytes": 0,
+        "pri6_bytes": 0,
+        "pri7_bytes": 0,
+        "pri8_bytes": 0,
+        "pri9_bytes": 0,
+        "pri10_bytes": 0,
+        "pri11_bytes": 779205276,
+        "reserved_bytes": 271605938,
+        "committed_bytes": 1073741824
+    },
+    "recoverystate_perf": {
+        "initial_latency": {
+            "avgcount": 237,
+            "sum": 4293799803.098181218,
+            "avgtime": 18117298.747249709
+        },
+        "started_latency": {
+            "avgcount": 109,
+            "sum": 5633000732.716212275,
+            "avgtime": 51678905.804735892
+        },
+        "reset_latency": {
+            "avgcount": 346,
+            "sum": 9926800702.204290746,
+            "avgtime": 28690175.439896794
+        },
+        "start_latency": {
+            "avgcount": 346,
+            "sum": 9926800702.212343462,
+            "avgtime": 28690175.439920067
+        },
+        "primary_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "peering_latency": {
+            "avgcount": 128,
+            "sum": 17107543491.915448959,
+            "avgtime": 133652683.530589444
+        },
+        "backfilling_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "waitremotebackfillreserved_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "waitlocalbackfillreserved_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "notbackfilling_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "repnotrecovering_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "repwaitrecoveryreserved_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "repwaitbackfillreserved_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "reprecovering_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "activating_latency": {
+            "avgcount": 128,
+            "sum": 17107543501.264200759,
+            "avgtime": 133652683.603626568
+        },
+        "waitlocalrecoveryreserved_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "waitremoterecoveryreserved_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "recovering_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "recovered_latency": {
+            "avgcount": 128,
+            "sum": 17107543501.269328880,
+            "avgtime": 133652683.603666631
+        },
+        "clean_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "active_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "replicaactive_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "stray_latency": {
+            "avgcount": 218,
+            "sum": 11266001422.224304655,
+            "avgtime": 51678905.606533507
+        },
+        "getinfo_latency": {
+            "avgcount": 128,
+            "sum": 17107543353.707990611,
+            "avgtime": 133652682.450843676
+        },
+        "getlog_latency": {
+            "avgcount": 128,
+            "sum": 17107543353.716543214,
+            "avgtime": 133652682.450910493
+        },
+        "waitactingchange_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "incomplete_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "down_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "getmissing_latency": {
+            "avgcount": 128,
+            "sum": 17107543353.718570960,
+            "avgtime": 133652682.450926335
+        },
+        "waitupthru_latency": {
+            "avgcount": 128,
+            "sum": 17107543491.913683296,
+            "avgtime": 133652683.530575650
+        },
+        "notrecovering_latency": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        }
+    },
+    "rocksdb": {
+        "get": 20488,
+        "submit_transaction": 8215,
+        "submit_transaction_sync": 553,
+        "get_latency": {
+            "avgcount": 20488,
+            "sum": 0.722733053,
+            "avgtime": 0.000035275
+        },
+        "submit_latency": {
+            "avgcount": 8215,
+            "sum": 0.994837414,
+            "avgtime": 0.000121100
+        },
+        "submit_sync_latency": {
+            "avgcount": 553,
+            "sum": 14.112770521,
+            "avgtime": 0.025520380
+        },
+        "compact": 0,
+        "compact_range": 0,
+        "compact_queue_merge": 0,
+        "compact_queue_len": 0,
+        "rocksdb_write_wal_time": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "rocksdb_write_memtable_time": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "rocksdb_write_delay_time": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        },
+        "rocksdb_write_pre_and_post_time": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        }
+    },
+    "throttle-bluestore_throttle_bytes": {
+        "val": 411030,
+        "max": 100000000,
+        "cost_per_io": 205515,
+        "inflight_ios": 2,
+        "get_started": 8217,
+        "get": 8217,
+        "get_sum": 1546439447,
+        "get_or_fail_fail": 0,
+        "get_or_fail_success": 0,
+        "take": 0,
+        "take_sum": 0,
+        "put": 552,
+        "put_sum": 1546028417,
+        "wait": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        }
+    },
+    "throttle-bluestore_throttle_deferred_bytes": {
+        "val": 0,
+        "max": 200000000,
+        "cost_per_io": 611081,
+        "inflight_ios": 0,
+        "get_started": 0,
+        "get": 4,
+        "get_sum": 1222193,
+        "get_or_fail_fail": 0,
+        "get_or_fail_success": 4,
+        "take": 0,
+        "take_sum": 0,
+        "put": 2,
+        "put_sum": 1222193,
+        "wait": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        }
+    },
+    "throttle-msgr_dispatch_throttler-client": {
+        "val": 4388,
+        "max": 104857600,
+        "cost_per_io": 4388,
+        "inflight_ios": 1,
+        "get_started": 0,
+        "get": 6858,
+        "get_sum": 30068908,
+        "get_or_fail_fail": 0,
+        "get_or_fail_success": 6858,
+        "take": 0,
+        "take_sum": 0,
+        "put": 6857,
+        "put_sum": 30064520,
+        "wait": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        }
+    },
+    "throttle-msgr_dispatch_throttler-cluster": {
+        "val": 0,
+        "max": 104857600,
+        "cost_per_io": 0,
+        "inflight_ios": 0,
+        "get_started": 0,
+        "get": 0,
+        "get_sum": 0,
+        "get_or_fail_fail": 0,
+        "get_or_fail_success": 0,
+        "take": 0,
+        "take_sum": 0,
+        "put": 0,
+        "put_sum": 0,
+        "wait": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        }
+    },
+    "throttle-msgr_dispatch_throttler-hb_back_client": {
+        "val": 0,
+        "max": 104857600,
+        "cost_per_io": 0,
+        "inflight_ios": 0,
+        "get_started": 0,
+        "get": 0,
+        "get_sum": 0,
+        "get_or_fail_fail": 0,
+        "get_or_fail_success": 0,
+        "take": 0,
+        "take_sum": 0,
+        "put": 0,
+        "put_sum": 0,
+        "wait": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        }
+    },
+    "throttle-msgr_dispatch_throttler-hb_back_server": {
+        "val": 0,
+        "max": 104857600,
+        "cost_per_io": 0,
+        "inflight_ios": 0,
+        "get_started": 0,
+        "get": 0,
+        "get_sum": 0,
+        "get_or_fail_fail": 0,
+        "get_or_fail_success": 0,
+        "take": 0,
+        "take_sum": 0,
+        "put": 0,
+        "put_sum": 0,
+        "wait": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        }
+    },
+    "throttle-msgr_dispatch_throttler-hb_front_client": {
+        "val": 0,
+        "max": 104857600,
+        "cost_per_io": 0,
+        "inflight_ios": 0,
+        "get_started": 0,
+        "get": 0,
+        "get_sum": 0,
+        "get_or_fail_fail": 0,
+        "get_or_fail_success": 0,
+        "take": 0,
+        "take_sum": 0,
+        "put": 0,
+        "put_sum": 0,
+        "wait": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        }
+    },
+    "throttle-msgr_dispatch_throttler-hb_front_server": {
+        "val": 0,
+        "max": 104857600,
+        "cost_per_io": 0,
+        "inflight_ios": 0,
+        "get_started": 0,
+        "get": 0,
+        "get_sum": 0,
+        "get_or_fail_fail": 0,
+        "get_or_fail_success": 0,
+        "take": 0,
+        "take_sum": 0,
+        "put": 0,
+        "put_sum": 0,
+        "wait": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        }
+    },
+    "throttle-msgr_dispatch_throttler-ms_objecter": {
+        "val": 0,
+        "max": 104857600,
+        "cost_per_io": 0,
+        "inflight_ios": 0,
+        "get_started": 0,
+        "get": 0,
+        "get_sum": 0,
+        "get_or_fail_fail": 0,
+        "get_or_fail_success": 0,
+        "take": 0,
+        "take_sum": 0,
+        "put": 0,
+        "put_sum": 0,
+        "wait": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        }
+    },
+    "throttle-objecter_bytes": {
+        "val": 0,
+        "max": 104857600,
+        "cost_per_io": 0,
+        "inflight_ios": 0,
+        "get_started": 0,
+        "get": 0,
+        "get_sum": 0,
+        "get_or_fail_fail": 0,
+        "get_or_fail_success": 0,
+        "take": 0,
+        "take_sum": 0,
+        "put": 0,
+        "put_sum": 0,
+        "wait": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        }
+    },
+    "throttle-objecter_ops": {
+        "val": 0,
+        "max": 1024,
+        "cost_per_io": 0,
+        "inflight_ios": 0,
+        "get_started": 0,
+        "get": 0,
+        "get_sum": 0,
+        "get_or_fail_fail": 0,
+        "get_or_fail_success": 0,
+        "take": 0,
+        "take_sum": 0,
+        "put": 0,
+        "put_sum": 0,
+        "wait": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        }
+    },
+    "throttle-osd_client_bytes": {
+        "val": 73428,
+        "max": 524288000,
+        "cost_per_io": 4388,
+        "inflight_ios": 16,
+        "get_started": 0,
+        "get": 6844,
+        "get_sum": 30030362,
+        "get_or_fail_fail": 0,
+        "get_or_fail_success": 6844,
+        "take": 0,
+        "take_sum": 0,
+        "put": 13658,
+        "put_sum": 29956934,
+        "wait": {
+            "avgcount": 0,
+            "sum": 0.000000000,
+            "avgtime": 0.000000000
+        }
+    }
+}

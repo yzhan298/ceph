@@ -29,7 +29,7 @@ class Throttle final : public ThrottleInterface {
   CephContext *cct;
   const std::string name;
   PerfCountersRef logger;
-  std::atomic<int64_t> count = { 0 }, max = { 0 };
+  std::atomic<int64_t> count = { 0 }, max = { 0 }, inflight_ios = { 0 }, cost_per_io = {0};
   std::mutex lock;
   std::list<std::condition_variable> conds;
   const bool use_perf;
@@ -65,6 +65,9 @@ public:
    * @returns the max number of slots
    */
   int64_t get_max() const { return max; }
+  
+  // get in-flight I/Os
+  int64_t get_inflight_ios() const {return inflight_ios; }
 
   /**
    * return true if past midpoint

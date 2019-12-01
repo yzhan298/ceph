@@ -1,0 +1,23 @@
+{
+    "OSD:ShardedOpWQ:0": {
+        "op_queue_size": 191,
+        "high_queues": [
+            169830,
+            0,
+            {
+                "priority": 255,
+                "num_keys": 114,
+                "first_item_cost": 0
+            }
+        ],
+        "queues": [
+            5,
+            1048576,
+            {
+                "priority": 5,
+                "num_keys": 77,
+                "first_item_cost": 1048576
+            }
+        ]
+    }
+}

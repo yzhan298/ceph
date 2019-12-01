@@ -10908,9 +10908,12 @@ void BlueStore::_txc_calc_cost(TransContext *txc)
 {
   // one "io" for the kv commit
   auto ios = 1 + txc->ioc.get_num_ios();
+  //auto ios = 1; // this is for testing!
   auto cost = throttle_cost_per_io.load();
-  //txc->cost = ios * cost + txc->bytes;
-  txc->cost = ios * cost; // this is for testing!
+  //dout(1) << "###1 throttle_cost_per_io="<<cost<<dendl;
+  txc->cost = ios * cost + txc->bytes;
+  //txc->cost = ios * cost; // this is for testing!
+  dout(1) << "###2 throttle_txc->cost="<<txc->cost <<", ios="<<ios << ", txc->bytes="<<txc->bytes << ", cost="<<cost<<dendl;
   txc->ios = ios;
   dout(10) << __func__ << " " << txc << " cost " << txc->cost << " ("
 	   << ios << " ios * " << cost << " + " << txc->bytes
@@ -11617,23 +11620,22 @@ void BlueStore::_kv_sync_thread()
       kvq_sum += kv_queue.size();
       kvq_count++;
       kvq_avg_size = kvq_sum / kvq_count; 
-      utime_t avg_kvq_lat_sum;
-      utime_t avg_kvq_lat;
+      //utime_t avg_kvq_lat_sum;
+      //utime_t avg_kvq_lat;
       for (auto txc : kv_queue) {
 	txc->time_kvq_out = ceph_clock_now();
 	logger->tinc(l_bluestore_kvq_lat, txc->time_kvq_out - txc->time_kvq_in);
-	auto kvq_lat = txc->time_kvq_out - txc->time_kvq_in;
-	avg_kvq_lat_sum += kvq_lat;  
+	//auto kvq_lat = txc->time_kvq_out - txc->time_kvq_in;
+	//avg_kvq_lat_sum += kvq_lat;  
       }
-      if(kv_queue.size() == 0) {
+      /*if(kv_queue.size() == 0) {
 	avg_kvq_lat = 0;
       }else {
       	//avg_kvq_lat = avg_kvq_lat_sum / kv_queue.size();
-      }
+      }*/
       //dout(1) << __func__ << " avg_kv_queue_lat="<< avg_kvq_lat << dendl;
       logger->set(l_bluestore_kv_queue_size, kv_queue.size());
-      //logger->set(l_bluestore_kv_queue_avg_size, kvq_avg_size);
-      //logger->tinc(l_bluestore_kvq_lat, txc->time_kvq_out - txc->time_kvq_in);
+      logger->set(l_bluestore_kv_queue_avg_size, kvq_avg_size);
 
       kv_committing.swap(kv_queue);
       kv_submitting.swap(kv_queue_unsubmitted);
@@ -12212,7 +12214,8 @@ int BlueStore::queue_transactions(
   // prepare
   TransContext *txc = _txc_create(static_cast<Collection*>(ch.get()), osr,
 				  &on_commit);
-  //dout(10) << "###state1="<<txc->state<<dendl; // should be 0, STATE_PREPARE
+  dout(10) << "###state1="<<txc->state<<dendl; // should be 0, STATE_PREPARE
+  //dout(1) << "###1 txc->cost="<<txc->cost << dendl;
   for (vector<Transaction>::iterator p = tls.begin(); p != tls.end(); ++p) {
     txc->bytes += (*p).get_num_bytes();
     _txc_add_transaction(txc, &(*p));
@@ -12239,8 +12242,8 @@ int BlueStore::queue_transactions(
   
   // take cost from budget
   if(cct->_conf->enable_throttle) {
-    //dout(0)<<__func__<<" ### bluestore throttle get called!" << dendl;
-    //throttle.get_throttle(txc->cost); // it's called in try_start_transaction
+    //dout(1) << "###2 txc->cost="<<txc->cost << dendl;
+    throttle.get_throttle(txc->cost); // it's called in try_start_transaction
 
   
     if (!throttle.try_start_transaction(
@@ -14973,7 +14976,7 @@ bool BlueStore::BlueStoreThrottle::try_start_transaction(
   TransContext &txc,
   mono_clock::time_point start_throttle_acquire)
 {
-  throttle_bytes.get(txc.cost);
+  //throttle_bytes.get(txc.cost);
 
   if (!txc.deferred_txn || throttle_deferred_bytes.get_or_fail(txc.cost)) {
     emit_initial_tracepoint(db, txc, start_throttle_acquire);

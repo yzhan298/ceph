@@ -23,6 +23,8 @@ enum {
   l_throttle_first = 532430,
   l_throttle_val,
   l_throttle_max,
+  l_throttle_cost_per_io,
+  l_throttle_inflight_io,
   l_throttle_get_started,
   l_throttle_get,
   l_throttle_get_sum,
@@ -50,6 +52,8 @@ Throttle::Throttle(CephContext *cct, const std::string& n, int64_t m,
     PerfCountersBuilder b(cct, string("throttle-") + name, l_throttle_first, l_throttle_last);
     b.add_u64(l_throttle_val, "val", "Currently available throttle");
     b.add_u64(l_throttle_max, "max", "Max value for throttle");
+    b.add_u64(l_throttle_cost_per_io, "cost_per_io", "Cost per IO in throttler");
+    b.add_u64(l_throttle_inflight_io, "inflight_ios", "In-flight IOs");
     b.add_u64_counter(l_throttle_get_started, "get_started", "Number of get calls, increased before wait");
     b.add_u64_counter(l_throttle_get, "get", "Gets");
     b.add_u64_counter(l_throttle_get_sum, "get_sum", "Got data");
@@ -139,11 +143,15 @@ int64_t Throttle::take(int64_t c)
   {
     std::lock_guard l(lock);
     count += c;
+    cost_per_io = c;
+    if(c != 0) inflight_ios = count / c;
   }
   if (logger) {
     logger->inc(l_throttle_take);
     logger->inc(l_throttle_take_sum, c);
     logger->set(l_throttle_val, count);
+    logger->set(l_throttle_cost_per_io, cost_per_io);
+    logger->set(l_throttle_inflight_io, inflight_ios);
   }
   return count;
 }
@@ -156,7 +164,7 @@ bool Throttle::get(int64_t c, int64_t m)
   }
 
   ceph_assert(c >= 0);
-  ldout(cct, 10) << "get " << c << " (" << count.load() << " -> " << (count.load() + c) << ")" << dendl;
+  ldout(cct, 1) << "get " << c << " (" << count.load() << " -> " << (count.load() + c) << ")" << dendl;
   if (logger) {
     logger->inc(l_throttle_get_started);
   }
@@ -169,11 +177,15 @@ bool Throttle::get(int64_t c, int64_t m)
     }
     waited = _wait(c, l);
     count += c;
+    cost_per_io = c;
+    if(c != 0) inflight_ios = count / c;
   }
   if (logger) {
     logger->inc(l_throttle_get);
     logger->inc(l_throttle_get_sum, c);
     logger->set(l_throttle_val, count);
+    logger->set(l_throttle_cost_per_io, cost_per_io);
+    logger->set(l_throttle_inflight_io, inflight_ios);
   }
   return waited;
 }
@@ -200,11 +212,15 @@ bool Throttle::get_or_fail(int64_t c)
     ldout(cct, 10) << "get_or_fail " << c << " success (" << count.load()
 		   << " -> " << (count.load() + c) << ")" << dendl;
     count += c;
+    cost_per_io = c;
+    if(c != 0) inflight_ios = count / c;
     if (logger) {
       logger->inc(l_throttle_get_or_fail_success);
       logger->inc(l_throttle_get);
       logger->inc(l_throttle_get_sum, c);
       logger->set(l_throttle_val, count);
+      logger->set(l_throttle_cost_per_io, cost_per_io);
+      logger->set(l_throttle_inflight_io, inflight_ios);
     }
     return true;
   }
@@ -227,10 +243,14 @@ int64_t Throttle::put(int64_t c)
     // if count goes negative, we failed somewhere!
     ceph_assert(count >= c);
     count -= c;
+    cost_per_io = c;
+    if(c != 0) inflight_ios = count / c;
     if (logger) {
       logger->inc(l_throttle_put);
       logger->inc(l_throttle_put_sum, c);
       logger->set(l_throttle_val, count);
+      logger->set(l_throttle_cost_per_io, cost_per_io);
+      logger->set(l_throttle_inflight_io, inflight_ios);
     }
   }
   return count;
@@ -242,8 +262,12 @@ void Throttle::reset()
   if (!conds.empty())
     conds.front().notify_one();
   count = 0;
+  cost_per_io = 0;
+  inflight_ios = 0;
   if (logger) {
     logger->set(l_throttle_val, 0);
+    logger->set(l_throttle_cost_per_io, 0);
+    logger->set(l_throttle_inflight_io, 0);
   }
 }
 
