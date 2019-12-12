@@ -7,7 +7,7 @@ qdepth=$1
 benchtool=$2
 
 # rados bench setting
-totaltime=120 # seconds
+totaltime=30 # seconds
 parallel=1
 sampling_time=2 # second(s)
 skip_first_n_sampling_points=2 # time=2*30=60s
@@ -41,10 +41,10 @@ CPU_MEM_DATA="dump-cpu-mem.csv"
 
 # average in-flight IO getting from throttler
 avg_inflight_io_throttle=0
-# get avg throughput from rados bench
-avg_throughput_rados_bench=0
-# get avg lat from rados bench
-avg_lat_rados_bench=0
+# get avg throughput from benchmark tool
+avg_throughput_bench=0
+# get avg lat from benchmark tool
+avg_lat_bench=0
 
 shard_name=""
 for i in $(seq 0 $(expr $shard_count - 1)); do
@@ -112,9 +112,12 @@ single_dump() {
 	kvq_size=$(jq ".bluestore.bluestore_kv_queue_size" $dump_state)
 	avg_kvq_size=$(jq ".bluestore.bluestore_kv_queue_avg_size" $dump_state)
 	if [ $benchtool = "rados" ];then 
-		avg_throughput_rados_bench=$(grep "Bandwidth (MB/sec)" dump-rados-bench-* | awk '{print $3}')
-		avg_lat_rados_bench=$(grep "Average Latency(s)" dump-rados-bench-* | awk '{print $3}')
+		avg_throughput_bench=$(grep "Bandwidth (MB/sec)" dump-rados-bench-* | awk '{print $3}')
+		avg_lat_bench=$(grep "Average Latency(s)" dump-rados-bench-* | awk '{print $3}')
 	fi
+	#if [ $benchtool = "fio" ];then
+	#
+	#fi
 	bluestore_kv_sync_lat=$(jq ".bluestore.kv_sync_lat.avgtime" $dump_state)
 	bluestore_service_lat=$(jq ".bluestore.bluestore_service_lat.avgtime" $dump_state)
 	bluestore_kvq_lat=$(jq ".bluestore.bluestore_kvq_lat.avgtime" $dump_state)
@@ -122,7 +125,7 @@ single_dump() {
 	bs_aio_wait_lat=$(jq ".bluestore.state_aio_wait_lat.avgtime" $dump_state)
 	bs_kv_queued_lat=$(jq ".bluestore.state_kv_queued_lat.avgtime" $dump_state)
 	bs_kv_committing_lat=$(jq ".bluestore.state_kv_commiting_lat.avgtime" $dump_state)
-	printf '%s\n' $bs $totaltime $qdepth $avg_kvq_size $avg_inflight_io_throttle $bluestore_kv_sync_lat $bluestore_service_lat $bluestore_kvq_lat $bluestore_commit_lat $bs_aio_wait_lat $bs_kv_queued_lat $bs_kv_committing_lat $avg_throughput_rados_bench $avg_lat_rados_bench  | paste -sd ',' >> ${DATA_TOTAL_FILE}
+	printf '%s\n' $bs $totaltime $qdepth $avg_kvq_size $avg_inflight_io_throttle $bluestore_kv_sync_lat $bluestore_service_lat $bluestore_kvq_lat $bluestore_commit_lat $bs_aio_wait_lat $bs_kv_queued_lat $bs_kv_committing_lat $avg_throughput_bench $avg_lat_bench  | paste -sd ',' >> ${DATA_TOTAL_FILE}
 done
 }
 

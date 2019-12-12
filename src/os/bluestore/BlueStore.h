@@ -1721,6 +1721,44 @@ public:
       trace_period_mcs = rate > 0 ? floor((1/rate) * 1000000.0) : 0;
 #endif
     }
+
+    // CoDel to handle BlueStore BufferBloat (experimental)
+    // members
+private:
+    time_t first_above_time; // time when queue delay is above target latency
+    time_t block_next; // time to block the op_queue dequeue thread
+    time_t target_queue_delay = 0.05; // the target queue delay (eg: 0.05s)
+    time_t codel_interval = 1; // the sliding window (eg: 1s)
+    uint64_t count; // used to adjust interval 
+    
+    //methods
+public:
+    // adjust interval
+    time_t adjust_interval(time_t t) {
+        return t + codel_interval / sqrt(count);
+    }
+
+    // compare actual queue delay with target queue delay
+    // if true, we block dequeue; if false, we do nothing
+    bool compare_latency(time_t now, TransContext *txc) {
+	utime_t sojourn_time = txc->time_kvq_out - txc->time_kvq_in;
+	//TODO the if condition should include the throttle_bytes used up case
+	if (sojourn_time < target_queue_delay) {
+	    // when below target, stay for at least one interval
+	    first_above_time = 0;
+	}else {
+	    if (first_above_time == 0) {
+                // just went above from below
+                // if stay above for one interval, we block dequeue
+                first_above_time = now + codel_interval;
+	    } else if(now >= first_above_time) {
+                return true;
+            }
+	}
+        return false;
+    }
+ 
+
   } throttle;
 
   typedef boost::intrusive::list<

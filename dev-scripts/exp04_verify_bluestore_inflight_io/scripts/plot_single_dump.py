@@ -31,18 +31,19 @@ plt.savefig("dump_lat_vs_qd.png", bbox_inches='tight')
 fig, ax1 = plt.subplots()
 ax1.set_xlabel('worklaod concurrency')
 ax1.set_ylabel('time (s)')
-ax1.plot(data1[2], data1[5], 'bo-', label="bluestore_kv_sync_lat") # vs bluestore_kv_sync_lat
-ax1.plot(data1[2], data1[8], 'go-', label="bluestore_commit_lat") # vs bluestore_commit_lat
+ax1.plot(data1[2], data1[5], 'bo-', label="bs_kv_sync_lat") # vs bluestore_kv_sync_lat
+ax1.plot(data1[2], data1[8], 'go-', label="bs_commit_lat") # vs bluestore_commit_lat
 ax1.plot(data1[2], data1[9], 'ro-', label="bs_aio_wait_lat") # vs bs_aio_wait_lat
 ax1.plot(data1[2], data1[10], 'co-', label="bs_kv_queued_lat") # vs bs_kv_queued_lat
 ax1.plot(data1[2], data1[11], 'yo-', label="bs_kv_committing_lat") # vs bs_kv_committing_lat
+ax1.plot(data1[2], data1[7], 'mo-', label="bs_kvq_lat") # vs average delay in kv_queue
 
 ax2 = ax1.twinx()
 ax2.set_ylabel("throughput (MB/s)")
 ax2.plot(data1[2], data1[12], 'kx--', label="throughput")
 
 fig.tight_layout()  # otherwise the right y-label is slightly clipped
-fig.legend(bbox_to_anchor=(1.29, 0.975))
+#fig.legend(bbox_to_anchor=(1.29, 0.975))
 fig.suptitle("BlueStore Throughput and Latency", y=1.02)
 fig.savefig("dump_thp_lat.png", bbox_inches='tight')
 

@@ -677,14 +677,13 @@ EOF
         bluestore block wal size = 1048576000
         bluestore block wal create = true
 	
-	bluestore_debug_enforce_settings=hdd
 	osd_op_num_shards = 1
 	enable_throttle = true
-	bluestore_throttle_bytes = 1000000
-	bluestore_throttle_deferred_bytes = 1000000
+	bluestore_throttle_bytes = 100000000
+	bluestore_throttle_deferred_bytes = 100000000
 	bluestore_throttle_cost_per_io = 0
 	bluestore_throttle_cost_per_io_hdd = 100000
-	bluestore_throttle_cost_per_io_ssd = 4000
+	bluestore_throttle_cost_per_io_ssd = 100000
 	bdev_block_size = 4096
 	bluestore_min_alloc_size = 0
 	bluestore_min_alloc_size_hdd = 65536

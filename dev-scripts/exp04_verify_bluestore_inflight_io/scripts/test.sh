@@ -3,12 +3,17 @@ set -ex
 bt=xx
 qdepth=xx
 
-a=0
-for o in $(seq 0 5); do
-	a=$( echo $a+$o | bc )
-done
-b=$( echo $a/5 | bc )
-echo $b
+sed -i "s/iodepth=.*/iodepth=${qdepth}/g" testfile
+
+#file_rados_bench=./dump-rados*
+#avg_throughput_bench=$(grep "Bandwidth (MB/sec)" $file_rados_bench | awk '{print $3}')
+
+#a=0
+#for o in $(seq 0 5); do
+#	a=$( echo $a+$o | bc )
+#done
+#b=$( echo $a/5 | bc )
+#echo $b
 
 #dirname=${bt}_plot_qd${qdepth}_$(date +%F)
 #mkdir -p data/${dirname}
