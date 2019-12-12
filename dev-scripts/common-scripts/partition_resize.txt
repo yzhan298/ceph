@@ -1,0 +1,10 @@
+Instructions on how to partition and resize disk
+
+1. use fdisk to delete all partition and create a new one, eg: sudo fdisk /dev/sda
+2. reboot after partition
+3. resize the new partiton, eg: sudo resize2fs /dev/sda1
+
+references:
+https://askubuntu.com/questions/66000/how-to-merge-partitions
+https://askubuntu.com/questions/329875/root-partition-size-remains-same-after-partition-resize-with-gparted
+
