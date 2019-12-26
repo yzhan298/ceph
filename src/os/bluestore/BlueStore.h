@@ -1727,8 +1727,8 @@ public:
 private:
     time_t first_above_time; // time when queue delay is above target latency
     time_t block_next; // time to block the op_queue dequeue thread
-    time_t target_queue_delay = 0.05; // the target queue delay (eg: 0.05s)
-    time_t codel_interval = 1; // the sliding window (eg: 1s)
+    time_t target_queue_delay = 0.011; // the target queue delay (eg: 0.011s)
+    time_t codel_interval = 10 * target_queue_delay; // the sliding window (eg: 10x the target delay)
     uint64_t count; // used to adjust interval 
     
     //methods
@@ -1971,6 +1971,26 @@ public:
 			  const string &prefix, size_t key_size, size_t value_size);
     void dump(Formatter *f);
   };
+
+  // <----- CoDel -----
+  // codel members and functions
+private:
+  utime_t interval_begin;
+  utime_t interval_end; 
+
+public:
+  void set_interval_begin(utime_t begin) {
+    interval_begin = begin;
+  }
+
+  void set_interval_end(utime_t end) {
+    interval_end = end;
+  }
+
+  utime_t get_interval() {
+    return interval_end - interval_begin;
+  }
+  // ----- CoDel ----->
 
   // --------------------------------------------------------
   // members

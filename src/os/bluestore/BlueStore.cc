@@ -11019,7 +11019,12 @@ void BlueStore::_txc_state_proc(TransContext *txc)
       {
 	std::lock_guard l(kv_lock);
 	kv_queue.push_back(txc);
-	txc->time_kvq_in = ceph_clock_now();
+
+        auto time_kvq_in = ceph_clock_now();
+	txc->time_kvq_in = time_kvq_in;
+	// set codel time interval start
+	//set_interval_begin(time_kvq_in);
+
 	if (!kv_sync_in_progress) {
 	  kv_sync_in_progress = true;
 	  kv_cond.notify_one();
@@ -11591,6 +11596,10 @@ void BlueStore::_kv_sync_thread()
   uint64_t kvq_count = 0;
   uint64_t kvq_sum = 0;
 
+  // codel: init time interval 
+  //auto init_interval = ceph_clock_now();
+  //set_interval_begin(init_interval); 
+
   while (true) {
     ceph_assert(kv_committing.empty());
     if (kv_queue.empty() &&
@@ -11636,6 +11645,10 @@ void BlueStore::_kv_sync_thread()
       //dout(1) << __func__ << " avg_kv_queue_lat="<< avg_kvq_lat << dendl;
       logger->set(l_bluestore_kv_queue_size, kv_queue.size());
       logger->set(l_bluestore_kv_queue_avg_size, kvq_avg_size);
+      
+      // codel interval end
+      //auto time_kvq_out = ceph_clock_now();
+      //set_interval_end(time_kvq_out);
 
       kv_committing.swap(kv_queue);
       kv_submitting.swap(kv_queue_unsubmitted);
