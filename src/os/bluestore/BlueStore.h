@@ -1725,33 +1725,66 @@ public:
     // CoDel to handle BlueStore BufferBloat (experimental)
     // members
 private:
-    time_t first_above_time; // time when queue delay is above target latency
-    time_t block_next; // time to block the op_queue dequeue thread
-    time_t target_queue_delay = 0.011; // the target queue delay (eg: 0.011s)
-    time_t codel_interval = 10 * target_queue_delay; // the sliding window (eg: 10x the target delay)
+    int count_ios = 0; // replace time interval with count(eg: default max 20)
+    int count_ios_max = 20; 
+    int count_batch = 0; // this is for kv_queue batch size
+    utime_t min_lat_interval; // min_lat in the interval
+    utime_t first_above_time; // time when queue delay is above target latency
+    utime_t block_next; // time to block the op_queue dequeue thread
+    utime_t target_queue_delay {0, 11000000}; // the target queue delay (eg: 0.011s)
+    utime_t codel_interval {0, 10 * 11000000}; // the sliding window (eg: 10x the target delay)
     uint64_t count; // used to adjust interval 
     
     //methods
 public:
-    // adjust interval
-    time_t adjust_interval(time_t t) {
-        return t + codel_interval / sqrt(count);
+    // check count
+    // if count reaches count_max, it's time to get the min and avg values over the interval 
+    void count_check() {
+        if(count_ios == count_ios_max) {
+            count_ios = 0; 
+            return;
+        }
+        count_ios++;
+    } 
+    int count_cur() { return count_ios; }
+    void count_inc() { count_ios++; }
+    void count_reset() { count_ios = 0; } 
+    int count_max() { return count_ios_max; }
+    // check batches. count how many batches has been process for kv_queue
+    void batch_check() {
+        if(count_batch == 4) {
+            count_batch = 0; 
+            return;
+        } 
+        count_batch++;
     }
+    // set min_lat
+    void set_min_lat_interval(utime_t t) {min_lat_interval = t;}
+    // get min_lat
+    utime_t get_min_lat_interval() {return min_lat_interval;}
+    // adjust interval
+    /*utime_t adjust_interval(utime_t t) {
+        return t + codel_interval / sqrt(count);
+    }*/
 
     // compare actual queue delay with target queue delay
     // if true, we block dequeue; if false, we do nothing
-    bool compare_latency(time_t now, TransContext *txc) {
-	utime_t sojourn_time = txc->time_kvq_out - txc->time_kvq_in;
+    bool compare_latency() {
 	//TODO the if condition should include the throttle_bytes used up case
-	if (sojourn_time < target_queue_delay) {
+	if (min_lat_interval < target_queue_delay) {
 	    // when below target, stay for at least one interval
 	    first_above_time = 0;
 	}else {
 	    if (first_above_time == 0) {
                 // just went above from below
                 // if stay above for one interval, we block dequeue
-                first_above_time = now + codel_interval;
-	    } else if(now >= first_above_time) {
+                //first_above_time = now + codel_interval;
+                first_above_time++;
+                return false;
+	    } /*else if(now >= first_above_time) {
+                return true;
+            }*/
+            else {
                 return true;
             }
 	}

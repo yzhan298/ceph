@@ -11020,8 +11020,13 @@ void BlueStore::_txc_state_proc(TransContext *txc)
 	std::lock_guard l(kv_lock);
 	kv_queue.push_back(txc);
 
+	// codel: kv_queue enqueue
         auto time_kvq_in = ceph_clock_now();
 	txc->time_kvq_in = time_kvq_in;
+        //throttle.count_check();
+        //dout(1) << "current count is "<< throttle.count_cur() <<", kv_queue size="<<kv_queue.size() <<dendl;
+        // NOTE: count != kv_queue.size
+
 	// set codel time interval start
 	//set_interval_begin(time_kvq_in);
 
@@ -11622,21 +11627,52 @@ void BlueStore::_kv_sync_thread()
 	       << " deferred done " << deferred_done_queue.size()
 	       << " stable " << deferred_stable_queue.size()
 	       << dendl;
-      /*for(auto t : kv_queue) {
-          dout(0)<<"### kv_queue txc state=" << t->state <<dendl;
-      }*/
-      dout(1) << __func__ << " kv_queue_size="<<kv_queue.size()<<dendl;
+      dout(10) << __func__ << " kv_queue_size="<<kv_queue.size()<<dendl;
       kvq_sum += kv_queue.size();
       kvq_count++;
       kvq_avg_size = kvq_sum / kvq_count; 
       //utime_t avg_kvq_lat_sum;
       //utime_t avg_kvq_lat;
+      
+      
+      utime_t before_dump = ceph_clock_now();
       for (auto txc : kv_queue) {
-	txc->time_kvq_out = ceph_clock_now();
+	txc->time_kvq_out = before_dump;
 	logger->tinc(l_bluestore_kvq_lat, txc->time_kvq_out - txc->time_kvq_in);
+        throttle.count_inc();
+        if(throttle.count_cur() != kv_queue.size() && kv_queue.size() > 1) {
+            if(throttle.get_min_lat_interval() == utime_t{0,0}) {
+                throttle.set_min_lat_interval(txc->time_kvq_out - txc->time_kvq_in);
+            }
+            else {
+                //throttle.set_min_lat_interval(std::min(throttle.get_min_lat_interval(), txc->time_kvq_out - txc->time_kvq_in));
+                dout(1)<<"### saved_min_lat is " << throttle.get_min_lat_interval() 
+                <<", lat is "<< txc->time_kvq_out - txc->time_kvq_in 
+                <<", min="<< std::min(throttle.get_min_lat_interval(), txc->time_kvq_out - txc->time_kvq_in)<<dendl;
+                throttle.set_min_lat_interval(std::min(throttle.get_min_lat_interval(), txc->time_kvq_out - txc->time_kvq_in));
+            }
+        }else if(kv_queue.size() == 1) {
+            throttle.set_min_lat_interval(txc->time_kvq_out - txc->time_kvq_in);
+        }
+        else {
+            throttle.count_reset();
+            throttle.set_min_lat_interval(utime_t{0,0});
+        }
 	//auto kvq_lat = txc->time_kvq_out - txc->time_kvq_in;
 	//avg_kvq_lat_sum += kvq_lat;  
       }
+      dout(1) << "###[kv_thread]current count is "<< throttle.count_cur() 
+        <<", kv_queue size="<<kv_queue.size() 
+        <<", min_lat=" << throttle.get_min_lat_interval()
+        <<dendl;
+
+      // codel: compare lat
+      bool whether_throttle = throttle.compare_latency();
+      if(whether_throttle) { // if true, we throttle 
+          // block the dispatch thread
+          // release after a certain period of time
+      }
+
       /*if(kv_queue.size() == 0) {
 	avg_kvq_lat = 0;
       }else {
@@ -11646,10 +11682,6 @@ void BlueStore::_kv_sync_thread()
       logger->set(l_bluestore_kv_queue_size, kv_queue.size());
       logger->set(l_bluestore_kv_queue_avg_size, kvq_avg_size);
       
-      // codel interval end
-      //auto time_kvq_out = ceph_clock_now();
-      //set_interval_end(time_kvq_out);
-
       kv_committing.swap(kv_queue);
       kv_submitting.swap(kv_queue_unsubmitted);
       deferred_done.swap(deferred_done_queue);
