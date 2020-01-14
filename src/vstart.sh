@@ -678,7 +678,8 @@ EOF
         bluestore block wal create = true
 	
 	osd_op_num_shards = 1
-	enable_throttle = true
+	enable_throttle = false
+        enable_codel = true
 	bluestore_throttle_bytes = 100000000
 	bluestore_throttle_deferred_bytes = 100000000
 	bluestore_throttle_cost_per_io = 0

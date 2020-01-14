@@ -1729,11 +1729,16 @@ private:
     int count_ios_max = 20; 
     int count_batch = 0; // this is for kv_queue batch size
     utime_t min_lat_interval; // min_lat in the interval
+    int first_above = 0; // if min_lat > target_lat for first time, we set it to 1 
+    bool should_block = false;
     utime_t first_above_time; // time when queue delay is above target latency
     utime_t block_next; // time to block the op_queue dequeue thread
-    utime_t target_queue_delay {0, 11000000}; // the target queue delay (eg: 0.011s)
-    utime_t codel_interval {0, 10 * 11000000}; // the sliding window (eg: 10x the target delay)
+    utime_t target_queue_delay {0, 100000}; // (time_t timestamp, int nanoseconds):the target queue delay (eg: 0.011s = {0, 11000000})
+    utime_t codel_interval {0, 10 * 100000}; // (timestamp, ns): the sliding window (eg: 10x the target delay)
     uint64_t count; // used to adjust interval 
+public:
+    std::condition_variable t_cond;
+    std::mutex t_mtx;
     
     //methods
 public:
@@ -1750,6 +1755,9 @@ public:
     void count_inc() { count_ios++; }
     void count_reset() { count_ios = 0; } 
     int count_max() { return count_ios_max; }
+    // debug: set should_block
+    void set_should_block(bool b) { should_block = b; }
+    bool get_should_block() { return should_block; }
     // check batches. count how many batches has been process for kv_queue
     void batch_check() {
         if(count_batch == 4) {
@@ -1757,6 +1765,9 @@ public:
             return;
         } 
         count_batch++;
+    }
+    utime_t get_min_delay() {
+        return target_queue_delay;
     }
     // set min_lat
     void set_min_lat_interval(utime_t t) {min_lat_interval = t;}
@@ -1773,22 +1784,28 @@ public:
 	//TODO the if condition should include the throttle_bytes used up case
 	if (min_lat_interval < target_queue_delay) {
 	    // when below target, stay for at least one interval
-	    first_above_time = 0;
+	    //first_above_time = {0, 0};
+            //first_above = 0;
+            should_block = false;
+            return false;
 	}else {
-	    if (first_above_time == 0) {
+	    /*if (first_above == 0) {
                 // just went above from below
                 // if stay above for one interval, we block dequeue
                 //first_above_time = now + codel_interval;
-                first_above_time++;
-                return false;
-	    } /*else if(now >= first_above_time) {
-                return true;
-            }*/
-            else {
-                return true;
+                //first_above_time++;
+                first_above = 1;
+                should_block = false;
+	    } else if(first_above == 1) {
+                first_above = 2;
+                should_block = true;
             }
+            else {
+                should_block = true;
+            }*/
+            should_block = true;
+            return true;
 	}
-        return false;
     }
  
 

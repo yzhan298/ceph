@@ -4775,9 +4775,13 @@ std::vector<Option> get_global_options() {
       .set_default(2)
       .set_description("Number of additional threads to perform quick-fix (shallow fsck) command"),
 
+    Option("enable_codel", Option::TYPE_BOOL, Option::LEVEL_ADVANCED)
+    .set_default(true)
+    .set_description("enable bluestore codel flow control components"),
+
     Option("enable_throttle", Option::TYPE_BOOL, Option::LEVEL_ADVANCED)
     .set_default(true)
-    .set_description("enable bluestore throttler"),
+    .set_description("enable bluestore throttler(token bucket system)"),
 
     Option("bluestore_throttle_bytes", Option::TYPE_SIZE, Option::LEVEL_ADVANCED)
     .set_default(64_M)

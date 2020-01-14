@@ -10913,7 +10913,7 @@ void BlueStore::_txc_calc_cost(TransContext *txc)
   //dout(1) << "###1 throttle_cost_per_io="<<cost<<dendl;
   txc->cost = ios * cost + txc->bytes;
   //txc->cost = ios * cost; // this is for testing!
-  dout(1) << "###2 throttle_txc->cost="<<txc->cost <<", ios="<<ios << ", txc->bytes="<<txc->bytes << ", cost="<<cost<<dendl;
+  dout(10) << "###2 throttle_txc->cost="<<txc->cost <<", ios="<<ios << ", txc->bytes="<<txc->bytes << ", cost="<<cost<<dendl;
   txc->ios = ios;
   dout(10) << __func__ << " " << txc << " cost " << txc->cost << " ("
 	   << ios << " ios * " << cost << " + " << txc->bytes
@@ -11634,12 +11634,15 @@ void BlueStore::_kv_sync_thread()
       //utime_t avg_kvq_lat_sum;
       //utime_t avg_kvq_lat;
       
-      
+      //{
+      //std::lock_guard l(t_mtx);
       utime_t before_dump = ceph_clock_now();
+      dout(1)<<"### kv_queue size="<<kv_queue.size()<<dendl;
       for (auto txc : kv_queue) {
 	txc->time_kvq_out = before_dump;
 	logger->tinc(l_bluestore_kvq_lat, txc->time_kvq_out - txc->time_kvq_in);
         throttle.count_inc();
+        dout(1)<<"### current count="<<throttle.count_cur()<<dendl;
         if(throttle.count_cur() != kv_queue.size() && kv_queue.size() > 1) {
             if(throttle.get_min_lat_interval() == utime_t{0,0}) {
                 throttle.set_min_lat_interval(txc->time_kvq_out - txc->time_kvq_in);
@@ -11651,27 +11654,40 @@ void BlueStore::_kv_sync_thread()
                 <<", min="<< std::min(throttle.get_min_lat_interval(), txc->time_kvq_out - txc->time_kvq_in)<<dendl;
                 throttle.set_min_lat_interval(std::min(throttle.get_min_lat_interval(), txc->time_kvq_out - txc->time_kvq_in));
             }
-        }else if(kv_queue.size() == 1) {
+        }
+        if(kv_queue.size() == 1) {
             throttle.set_min_lat_interval(txc->time_kvq_out - txc->time_kvq_in);
         }
-        else {
+       /* else {
             throttle.count_reset();
             throttle.set_min_lat_interval(utime_t{0,0});
-        }
+        }*/
 	//auto kvq_lat = txc->time_kvq_out - txc->time_kvq_in;
 	//avg_kvq_lat_sum += kvq_lat;  
       }
-      dout(1) << "###[kv_thread]current count is "<< throttle.count_cur() 
+      //}// kv_lock end
+      dout(10) << "###[kv_thread]current count is "<< throttle.count_cur() 
         <<", kv_queue size="<<kv_queue.size() 
         <<", min_lat=" << throttle.get_min_lat_interval()
         <<dendl;
 
       // codel: compare lat
-      bool whether_throttle = throttle.compare_latency();
-      if(whether_throttle) { // if true, we throttle 
+      dout(1) << "###4 should_block="<<throttle.get_should_block()
+      <<",min="<<throttle.get_min_lat_interval()<<", target="<<throttle.get_min_delay() <<dendl;
+      throttle.compare_latency(); // this function can set should_block to true
+      if(throttle.get_min_lat_interval() > throttle.get_min_delay()) {
+          dout(1) <<"###4.5 min_lat > target_lat is true"<<dendl;
+      }
+      dout(1) << "###5 should_block="<<throttle.get_should_block()<<",min="<<throttle.get_min_lat_interval()<<", target="<<throttle.get_min_delay() <<dendl;
+      throttle.count_reset();
+      throttle.set_min_lat_interval(utime_t{0,0});
+      /*throttle.set_should_block(true);
+      if(throttle.get_should_block()) { // if true, we throttle 
           // block the dispatch thread
           // release after a certain period of time
-      }
+          //throttle.t_cond.notify_all(); 
+      }*/
+      
 
       /*if(kv_queue.size() == 0) {
 	avg_kvq_lat = 0;
@@ -12284,12 +12300,25 @@ int BlueStore::queue_transactions(
     handle->suspend_tp_timeout();
 
   auto tstart = mono_clock::now();
+  //dout(1)<<"### [1] before lock "<<dendl;
+  // codel
+  throttle.t_cond.notify_all();
   
+  dout(1)<<"###0 enable_Codel="<<cct->_conf->enable_codel<<", should_block="<<throttle.get_should_block()<<dendl;
+  if(cct->_conf->enable_codel && throttle.get_should_block()) {
+    // codel: block the osd_op_tp thread
+    dout(1)<<"###1 should_block="<<throttle.get_should_block()<<dendl;
+    std::unique_lock<std::mutex> t_lk{throttle.t_mtx};
+    dout(1) << "###2 lock start = "<< mono_clock::now() << dendl;
+    throttle.t_cond.wait_for(t_lk, std::chrono::milliseconds(100)); // block for 1 second
+    dout(1) << "###3 lock end = "<< mono_clock::now() << dendl;
+    t_lk.unlock();
+  }
+  //dout(1)<<"### [2] after lock "<<dendl; 
   // take cost from budget
   if(cct->_conf->enable_throttle) {
     //dout(1) << "###2 txc->cost="<<txc->cost << dendl;
-    throttle.get_throttle(txc->cost); // it's called in try_start_transaction
-
+       throttle.get_throttle(txc->cost); // it's called in try_start_transaction
   
     if (!throttle.try_start_transaction(
 	*db,
