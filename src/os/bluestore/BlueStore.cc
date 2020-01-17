@@ -11637,48 +11637,98 @@ void BlueStore::_kv_sync_thread()
       //{
       //std::lock_guard l(t_mtx);
       utime_t before_dump = ceph_clock_now();
-      dout(1)<<"### kv_queue size="<<kv_queue.size()<<dendl;
-      for (auto txc : kv_queue) {
-	txc->time_kvq_out = before_dump;
-	logger->tinc(l_bluestore_kvq_lat, txc->time_kvq_out - txc->time_kvq_in);
-        throttle.count_inc();
-        dout(1)<<"### current count="<<throttle.count_cur()<<dendl;
-        if(throttle.count_cur() != kv_queue.size() && kv_queue.size() > 1) {
-            if(throttle.get_min_lat_interval() == utime_t{0,0}) {
-                throttle.set_min_lat_interval(txc->time_kvq_out - txc->time_kvq_in);
-            }
-            else {
-                //throttle.set_min_lat_interval(std::min(throttle.get_min_lat_interval(), txc->time_kvq_out - txc->time_kvq_in));
-                dout(1)<<"### saved_min_lat is " << throttle.get_min_lat_interval() 
-                <<", lat is "<< txc->time_kvq_out - txc->time_kvq_in 
-                <<", min="<< std::min(throttle.get_min_lat_interval(), txc->time_kvq_out - txc->time_kvq_in)<<dendl;
-                throttle.set_min_lat_interval(std::min(throttle.get_min_lat_interval(), txc->time_kvq_out - txc->time_kvq_in));
-            }
-        }
-        if(kv_queue.size() == 1) {
-            throttle.set_min_lat_interval(txc->time_kvq_out - txc->time_kvq_in);
-        }
-       /* else {
-            throttle.count_reset();
-            throttle.set_min_lat_interval(utime_t{0,0});
-        }*/
-	//auto kvq_lat = txc->time_kvq_out - txc->time_kvq_in;
-	//avg_kvq_lat_sum += kvq_lat;  
+      dout(10)<<"###1 kv_q size="<<kv_queue.size()<<", bound="<<throttle.kv_queue_upper_bound_size<<dendl; //<<", kv_q_temp size="<<kv_queue_temp.size()<<", bound="<<throttle.kv_queue_upper_bound_size<<dendl;
+      if(kv_queue.size() > throttle.kv_queue_upper_bound_size) {
+          //kv_queue_temp.insert(kv_queue_temp.begin(), 
+          //    std::make_move_iterator(kv_queue.begin()), 
+          //    std::make_move_iterator(kv_queue.begin()+throttle.kv_queue_upper_bound_size));
+          //int kvq_elm_count = 0;
+          dout(10)<<"###2 kv_q is greatefr than 5, size="<<kv_queue.size()<<dendl;
+          for(auto txc : kv_queue) {
+              //kvq_elm_count++;
+              //if(kvq_elm_count == throttle.kv_queue_upper_bound_size) { return; }
+              //txc->time_kvq_out = before_dump;
+              //auto cur_queue_delay = txc->time_kvq_out - txc->time_kvq_in;
+              //logger->tinc(l_bluestore_kvq_lat, cur_queue_delay);
+              throttle.count_inc();
+              //throttle.get_min_delay(kv_queue_temp, cur_queue_delay);
+              dout(10)<<"###3 in for loop, q_size="<<kv_queue.size()<<", count="<<throttle.count_cur()<<dendl;
+              if(throttle.count_cur() <= throttle.kv_queue_upper_bound_size) {
+                  dout(10)<<"###3.1 size="<<kv_queue.size()<<", count="<<throttle.count_cur()<<dendl;
+                  txc->time_kvq_out = before_dump;
+                  auto cur_queue_delay = txc->time_kvq_out - txc->time_kvq_in;
+                  logger->tinc(l_bluestore_kvq_lat, cur_queue_delay);
+                  
+                  if(throttle.get_min_lat_interval() == utime_t{0,0}) {
+                      throttle.set_min_lat_interval(cur_queue_delay);
+                  }
+                  else {
+                      throttle.set_min_lat_interval(std::min(throttle.get_min_lat_interval(), cur_queue_delay));
+                  }
+              }else { 
+                  dout(10)<<"###3.2 size="<<kv_queue.size()<<", count="<<throttle.count_cur()<<dendl;
+                  break; 
+              }
+              /*if(kv_queue.size() == 1) {
+                 throttle.set_min_lat_interval(txc->time_kvq_out - txc->time_kvq_in);
+              }*/
+          }
+          // method 2, pop the first n txcs
+          dout(10)<<"###4 kv_q size="<<kv_queue.size()<<dendl;
+          kv_committing.insert(kv_committing.begin(),
+            std::make_move_iterator(kv_queue.begin()),
+            std::make_move_iterator(kv_queue.begin()+throttle.kv_queue_upper_bound_size));
+          kv_queue.erase(kv_queue.begin(), kv_queue.begin()+throttle.kv_queue_upper_bound_size);
+          dout(10)<<"###5 kv_q size="<<kv_queue.size()<<dendl;
       }
+      /*if(!kv_queue_temp.empty()) { // if kv_queue_temp.is not empty, we need to handle it
+          for(auto txc : kv_queue_temp) {
+              txc->time_kvq_out = before_dump;
+              auto cur_queue_delay = txc->time_kvq_out - txc->time_kvq_in;
+              logger->tinc(l_bluestore_kvq_lat, cur_queue_delay);
+              throttle.count_inc();
+              throttle.get_min_delay(kv_queue_temp, cur_queue_delay);
+          }
+      }*/
+      else {
+          for (auto txc : kv_queue) {
+	      txc->time_kvq_out = before_dump;
+	      logger->tinc(l_bluestore_kvq_lat, txc->time_kvq_out - txc->time_kvq_in);
+              throttle.count_inc();
+              dout(10)<<"### current count="<<throttle.count_cur()<<dendl;
+              if(throttle.count_cur() != kv_queue.size() && kv_queue.size() > 1) {
+                  if(throttle.get_min_lat_interval() == utime_t{0,0}) {
+                      throttle.set_min_lat_interval(txc->time_kvq_out - txc->time_kvq_in);
+                  }
+                  else {
+                      //throttle.set_min_lat_interval(std::min(throttle.get_min_lat_interval(), txc->time_kvq_out - txc->time_kvq_in));
+                      dout(10)<<"### saved_min_lat is " << throttle.get_min_lat_interval() 
+                        <<", lat is "<< txc->time_kvq_out - txc->time_kvq_in 
+                        <<", min="<< std::min(throttle.get_min_lat_interval(), txc->time_kvq_out - txc->time_kvq_in)<<dendl;
+                      throttle.set_min_lat_interval(std::min(throttle.get_min_lat_interval(), txc->time_kvq_out - txc->time_kvq_in));
+                  }
+              }
+              if(kv_queue.size() == 1) {
+                 throttle.set_min_lat_interval(txc->time_kvq_out - txc->time_kvq_in);
+              }
+          }
+      }
+      //dout(1)<<"###2 kv_q size="<<kv_queue.size() <<", kv_q_temp size="<<kv_queue_temp.size()<<dendl;
       //}// kv_lock end
-      dout(10) << "###[kv_thread]current count is "<< throttle.count_cur() 
+      dout(1) << "###[kv_thread]current count is "<< throttle.count_cur() 
         <<", kv_queue size="<<kv_queue.size() 
+        <<", kv_committing="<<kv_committing.size()
         <<", min_lat=" << throttle.get_min_lat_interval()
         <<dendl;
 
       // codel: compare lat
-      dout(1) << "###4 should_block="<<throttle.get_should_block()
+      dout(10) << "###4 should_block="<<throttle.get_should_block()
       <<",min="<<throttle.get_min_lat_interval()<<", target="<<throttle.get_min_delay() <<dendl;
       throttle.compare_latency(); // this function can set should_block to true
       if(throttle.get_min_lat_interval() > throttle.get_min_delay()) {
-          dout(1) <<"###4.5 min_lat > target_lat is true"<<dendl;
+          dout(10) <<"###4.5 min_lat > target_lat is true"<<dendl;
       }
-      dout(1) << "###5 should_block="<<throttle.get_should_block()<<",min="<<throttle.get_min_lat_interval()<<", target="<<throttle.get_min_delay() <<dendl;
+      dout(10) << "###5 should_block="<<throttle.get_should_block()<<",min="<<throttle.get_min_lat_interval()<<", target="<<throttle.get_min_delay() <<dendl;
       throttle.count_reset();
       throttle.set_min_lat_interval(utime_t{0,0});
       /*throttle.set_should_block(true);
@@ -11698,7 +11748,14 @@ void BlueStore::_kv_sync_thread()
       logger->set(l_bluestore_kv_queue_size, kv_queue.size());
       logger->set(l_bluestore_kv_queue_avg_size, kvq_avg_size);
       
-      kv_committing.swap(kv_queue);
+      /*if(!kv_queue.empty()) {
+          kv_committing.swap(kv_queue_temp);
+      }else {
+          kv_committing.swap(kv_queue);
+      }*/
+      if(kv_committing.empty()) {
+          kv_committing.swap(kv_queue);
+      }
       kv_submitting.swap(kv_queue_unsubmitted);
       deferred_done.swap(deferred_done_queue);
       deferred_stable.swap(deferred_stable_queue);
@@ -12304,16 +12361,22 @@ int BlueStore::queue_transactions(
   // codel
   throttle.t_cond.notify_all();
   
-  dout(1)<<"###0 enable_Codel="<<cct->_conf->enable_codel<<", should_block="<<throttle.get_should_block()<<dendl;
+  dout(10)<<"###0 enable_Codel="<<cct->_conf->enable_codel<<", should_block="<<throttle.get_should_block()<<dendl;
   if(cct->_conf->enable_codel && throttle.get_should_block()) {
     // codel: block the osd_op_tp thread
-    dout(1)<<"###1 should_block="<<throttle.get_should_block()<<dendl;
+    dout(10)<<"###1 should_block="<<throttle.get_should_block()<<dendl;
     std::unique_lock<std::mutex> t_lk{throttle.t_mtx};
-    dout(1) << "###2 lock start = "<< mono_clock::now() << dendl;
-    throttle.t_cond.wait_for(t_lk, std::chrono::milliseconds(100)); // block for 1 second
-    dout(1) << "###3 lock end = "<< mono_clock::now() << dendl;
-    t_lk.unlock();
+    while (throttle.get_should_block()) {
+        dout(10) << "###2 lock start = "<< mono_clock::now() << dendl;
+        // TODO try to use wait_until 
+        throttle.t_cond.wait_for(t_lk, std::chrono::milliseconds(20)); // block for a period of time
+        //throttle.t_cond.wait_until(); 
+        dout(10) << "###3 lock end = "<< mono_clock::now() << dendl;
+    }
   }
+  
+  throttle.set_should_block(false);
+  dout(10) << "###3.5 should_block="<<throttle.get_should_block()<<dendl;
   //dout(1)<<"### [2] after lock "<<dendl; 
   // take cost from budget
   if(cct->_conf->enable_throttle) {

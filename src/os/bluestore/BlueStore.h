@@ -1726,17 +1726,18 @@ public:
     // members
 private:
     int count_ios = 0; // replace time interval with count(eg: default max 20)
-    int count_ios_max = 20; 
+    int count_ios_max = 20; // only use this for control the max count  
     int count_batch = 0; // this is for kv_queue batch size
     utime_t min_lat_interval; // min_lat in the interval
     int first_above = 0; // if min_lat > target_lat for first time, we set it to 1 
     bool should_block = false;
     utime_t first_above_time; // time when queue delay is above target latency
     utime_t block_next; // time to block the op_queue dequeue thread
-    utime_t target_queue_delay {0, 100000}; // (time_t timestamp, int nanoseconds):the target queue delay (eg: 0.011s = {0, 11000000})
+    utime_t target_queue_delay {0, 10000000}; // (time_t timestamp, int nanoseconds):the target queue delay (eg: 0.011s = {0, 11000000})
     utime_t codel_interval {0, 10 * 100000}; // (timestamp, ns): the sliding window (eg: 10x the target delay)
     uint64_t count; // used to adjust interval 
 public:
+    int kv_queue_upper_bound_size = 5; // upper bound size of kv_queue
     std::condition_variable t_cond;
     std::mutex t_mtx;
     
@@ -1807,7 +1808,20 @@ public:
             return true;
 	}
     }
- 
+    
+    void get_min_delay(deque<TransContext*>& q, utime_t t) {
+        if(count_cur() != q.size() && q.size() > 1) {
+            if(get_min_lat_interval() == utime_t{0,0}) {
+                set_min_lat_interval(t);
+            }
+            else {
+                set_min_lat_interval(std::min(get_min_lat_interval(), t));
+            }
+        }
+        if(q.size() == 1) {
+            set_min_lat_interval(t);
+        }
+    }
 
   } throttle;
 
@@ -2098,6 +2112,7 @@ private:
   bool kv_finalize_started = false;
   bool kv_finalize_stop = false;
   deque<TransContext*> kv_queue;             ///< ready, already submitted
+  //deque<TransContext*> kv_queue_temp;        ///< when kv_queue size hits the upper bound, we only submit the max number of txcs
   deque<TransContext*> kv_queue_unsubmitted; ///< ready, need submit by kv thread
   deque<TransContext*> kv_committing;        ///< currently syncing
   deque<DeferredBatch*> deferred_done_queue;   ///< deferred ios done
