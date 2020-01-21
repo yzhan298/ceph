@@ -1553,6 +1553,9 @@ public:
     utime_t time_finished; // time when finished
     utime_t time_kvq_in; // time when txc is pushed into kv_queue
     utime_t time_kvq_out; // time when txc is swapped out from kv_queue
+    std::chrono::time_point<mono_clock> time_kvq_in1;
+    std::chrono::time_point<mono_clock> time_kvq_out1; 
+    std::chrono::time_point<mono_clock> time_commit_done1;
 
     uint64_t last_nid = 0;     ///< if non-zero, highest new nid we allocated
     uint64_t last_blobid = 0;  ///< if non-zero, highest new blobid we allocated
@@ -1732,12 +1735,16 @@ private:
     int first_above = 0; // if min_lat > target_lat for first time, we set it to 1 
     bool should_block = false;
     utime_t first_above_time; // time when queue delay is above target latency
-    utime_t block_next; // time to block the op_queue dequeue thread
-    utime_t target_queue_delay {0, 10000000}; // (time_t timestamp, int nanoseconds):the target queue delay (eg: 0.011s = {0, 11000000})
-    utime_t codel_interval {0, 10 * 100000}; // (timestamp, ns): the sliding window (eg: 10x the target delay)
-    uint64_t count; // used to adjust interval 
+    //utime_t block_next; // time to block the op_queue dequeue thread
+    //std::chrono::time_point<std::chrono::system_clock, std::chrono::nanoseconds> block_next;
+    std::chrono::time_point<mono_clock, std::chrono::nanoseconds> block_next;
+    uint64_t count = 0; // if in blocking state, we increase count by 1 eaach time
 public:
-    int kv_queue_upper_bound_size = 5; // upper bound size of kv_queue
+    // constants
+    utime_t target_queue_delay {0, 10000000}; // (time_t timestamp, int nanoseconds):the target queue delay (eg: 0.011s = {0, 11000000})
+    //utime_t codel_interval {0, 66000000}; // (timestamp, ns): the blocking duration
+    std::chrono::nanoseconds codel_interval = std::chrono::nanoseconds(66000000);
+    int kv_queue_upper_bound_size = 5; // upper bound size of batch(eg: allowing max 5 txcs to be committed in BlueStore for a batch)
     std::condition_variable t_cond;
     std::mutex t_mtx;
     
@@ -1779,15 +1786,27 @@ public:
         return t + codel_interval / sqrt(count);
     }*/
 
+    std::chrono::time_point<mono_clock, std::chrono::nanoseconds> get_block_next() { return block_next; }
+    uint64_t get_count() { return count; }
+
+    // gradually increase the frequency of blocking 
+    // by reducing the next blocking time
+    std::chrono::nanoseconds blocking_dur() {
+        //return t + codel_interval/sqrt(count);
+        //auto t = utime_t{0,codel_interval.nsec()/sqrt(count)};
+        return codel_interval / count;
+    }
+
     // compare actual queue delay with target queue delay
     // if true, we block dequeue; if false, we do nothing
-    bool compare_latency() {
+    bool compare_latency(std::chrono::time_point<mono_clock> now) {
 	//TODO the if condition should include the throttle_bytes used up case
 	if (min_lat_interval < target_queue_delay) {
 	    // when below target, stay for at least one interval
 	    //first_above_time = {0, 0};
             //first_above = 0;
             should_block = false;
+            count = 0; // reset count
             return false;
 	}else {
 	    /*if (first_above == 0) {
@@ -1805,6 +1824,8 @@ public:
                 should_block = true;
             }*/
             should_block = true;
+            count++;
+            block_next = now + blocking_dur();
             return true;
 	}
     }
@@ -1822,6 +1843,18 @@ public:
             set_min_lat_interval(t);
         }
     }
+    
+    // timespec to std::chrono::duration
+    std::chrono::nanoseconds timespecToDuration(utime_t t) {
+        auto duration = std::chrono::seconds{t.tv.tv_sec} + std::chrono::nanoseconds{t.tv.tv_nsec};
+        return std::chrono::duration_cast<std::chrono::nanoseconds>(duration);
+    }
+
+    // timespec to time_point
+    std::chrono::time_point<std::chrono::system_clock, std::chrono::nanoseconds> timespecToTimePoint(utime_t t) {
+         //return std::chrono::time_point<std::chrono::system_clock, std::chrono::nanoseconds>{std::chrono::duration_cast<std::chrono::system_clock::duration>(timespecToDuration(t))};
+         return std::chrono::time_point<std::chrono::system_clock, std::chrono::nanoseconds>(timespecToDuration(t));
+    } 
 
   } throttle;
 
