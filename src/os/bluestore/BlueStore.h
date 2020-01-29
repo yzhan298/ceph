@@ -1729,10 +1729,12 @@ public:
     // CoDel to handle BlueStore BufferBloat (experimental)
     // members
 private:
-    int count_ios = 0; // replace time interval with count(eg: default max 20)
+    size_t count_ios = 0; // replace time interval with count(eg: default max 20)
     //int count_ios_max = 20; // only use this for control the max count  
     //int count_batch = 0; // this is for kv_queue batch size
     utime_t min_lat_interval; // min_lat in the interval
+    std::chrono::nanoseconds cur_blocking_dur{0}; // current blocking duration
+    std::chrono::nanoseconds pre_blocking_dur{0}; // previous blocking duration (used in compare_latency function)
     int first_above = 0; // if min_lat > target_lat for first time, we set it to 1 
     bool should_block = false;
     //utime_t first_above_time; // time when queue delay is above target latency
@@ -1742,15 +1744,15 @@ private:
 public:
     // constants
     utime_t target_queue_delay {0, 10000000}; // (time_t timestamp, int nanoseconds):the target queue delay (eg: 0.011s = {0, 11000000})
-    //utime_t codel_interval {0, 66000000}; // (timestamp, ns): the blocking duration
-    std::chrono::nanoseconds codel_interval = std::chrono::nanoseconds(500000);
+    std::chrono::nanoseconds init_blocking_dur{500000};
     int kv_queue_upper_bound_size = 10; // upper bound size of batch(eg: allowing max 5 txcs to be committed in BlueStore for a batch)
+    std::chrono::nanoseconds const_lat{2000000};
     std::condition_variable t_cond;
     std::mutex t_mtx;
     
     //methods
 public:
-    int count_cur() { return count_ios; }
+    size_t count_cur() { return count_ios; }
     void count_inc() { count_ios++; }
     void count_reset() { count_ios = 0; } 
     // debug: set flag
@@ -1763,22 +1765,30 @@ public:
     void set_min_lat_interval(utime_t t) {min_lat_interval = t;}
     // get min_lat
     utime_t get_min_lat_interval() {return min_lat_interval;}
+    // set previous blocking_dur
+    void set_pre_blocking_dur(std::chrono::nanoseconds t) {pre_blocking_dur = t;}
+    // get previous blocking_dur
+    std::chrono::nanoseconds get_pre_blocking_dur() {return pre_blocking_dur;}
+    // set current blocking_dur
+    void set_cur_blocking_dur(std::chrono::nanoseconds t) {cur_blocking_dur = t;}
+    // get current blocking_dur
+    std::chrono::nanoseconds get_cur_blocking_dur() {return cur_blocking_dur;}
     // get the timestamp for next block ends(block until)
     std::chrono::time_point<mono_clock, std::chrono::nanoseconds> get_block_next() { return block_next; }
     // get count
     uint64_t get_count() { return count; }
     // gradually increase the duration of blocking 
-    std::chrono::nanoseconds blocking_dur() {
+    /*void blocking_dur() {
     //std::chrono::time_point_cast<std::chrono::time_point<mono_clock, std::chrono::nanoseconds>> blocking_dur() {
         if(count > 0) {
             return std::chrono::nanoseconds{static_cast<long>(codel_interval.count()*sqrt(count))};
         }else { 
             return std::chrono::nanoseconds{static_cast<long>(codel_interval.count())}; 
         }
-    }
+    }*/
     // compare min queue delay with target queue delay and generate the blokcing timestamp
-    bool compare_latency(std::chrono::time_point<mono_clock> now) {
-	if (min_lat_interval < target_queue_delay && count == 0) {
+    void compare_latency(std::chrono::time_point<mono_clock> now) {
+	/*if (min_lat_interval < target_queue_delay && count == 0) {
             should_block = false;
             block_next = now;
             return false;
@@ -1792,7 +1802,19 @@ public:
             count++;
             block_next = now + blocking_dur(); // increase blocking duration 
             return true;
-	}
+	}*/
+        if(cur_blocking_dur == std::chrono::nanoseconds::zero() && pre_blocking_dur == std::chrono::nanoseconds::zero()) {
+            if(min_lat_interval > target_queue_delay) {
+                cur_blocking_dur = init_blocking_dur;
+            }
+        }else {
+            if(min_lat_interval <= target_queue_delay) {
+                cur_blocking_dur = pre_blocking_dur - const_lat;
+            }else {
+                cur_blocking_dur = pre_blocking_dur + const_lat;
+            }
+        }
+        block_next = now + cur_blocking_dur;
     }
     
     void get_min_delay(deque<TransContext*>& q, utime_t t) {

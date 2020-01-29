@@ -11632,7 +11632,18 @@ void BlueStore::_kv_sync_thread()
       kvq_avg_size = kvq_sum / kvq_count; 
       //utime_t avg_kvq_lat_sum;
       //utime_t avg_kvq_lat;
-       
+      /*if(kv_queue.size() > throttle.kv_queue_upper_bound_size && kv_queue_unsubmitted.size() > throttle.kv_queue_upper_bound_size) {
+          kv_committing.insert(kv_committing.begin(),
+            std::make_move_iterator(kv_queue.begin()),
+            std::make_move_iterator(kv_queue.begin()+throttle.kv_queue_upper_bound_size));
+          kv_queue.erase(kv_queue.begin(), kv_queue.begin()+throttle.kv_queue_upper_bound_size);
+
+          kv_submitting.swap(kv_submitting.begin(),
+            std::make_move_iterator(kv_queue_unsubmitted.begin()),
+            std::make_move_iterator(kv_queue_unsubmitted.begin()+throttle.kv_queue_upper_bound_size));
+            kv_queue_unsubmitted.erase(kv_queue_unsubmitted.begin(),kv_queue_unsubmitted.begin()+throttle.kv_queue_upper_bound_size);
+      }*/
+  
       /*utime_t before_dump = ceph_clock_now();
       std::chrono::time_point<mono_clock> system_now = mono_clock::now();
       if(kv_queue.size() > throttle.kv_queue_upper_bound_size) {
@@ -11743,7 +11754,7 @@ void BlueStore::_kv_sync_thread()
       }else {
           kv_committing.swap(kv_queue);
       }*/
-      /*if(kv_committing.empty()) {
+      /*if(kv_committing.empty() && kv_submitting.empty()) {
           kv_committing.swap(kv_queue);
           //kv_submitting.swap(kv_queue_unsubmitted);
       }*/
@@ -11907,6 +11918,9 @@ void BlueStore::_kv_sync_thread()
       {
           utime_t codel_after_commit = ceph_clock_now();
           std::chrono::time_point<mono_clock> system_now = mono_clock::now();
+          dout(10)<<"###1 pre_bd="<<throttle.get_pre_blocking_dur()<<", cur_bd="<<throttle.get_cur_blocking_dur()<<dendl;
+          throttle.set_pre_blocking_dur(throttle.get_cur_blocking_dur()); // save the previous blocking duration
+          dout(10)<<"###2 pre_bd="<<throttle.get_pre_blocking_dur()<<", cur_bd="<<throttle.get_cur_blocking_dur()<<dendl;
           for(auto txc : kv_committing) {
               throttle.count_inc();
               txc->time_measure_end = codel_after_commit;
@@ -11923,9 +11937,13 @@ void BlueStore::_kv_sync_thread()
                   throttle.set_min_lat_interval(cur_queue_delay);
               }
           } 
+          dout(10)<<"### current time="<<system_now<<", blocking_timestamp="<<throttle.get_block_next()<<dendl;
+          dout(10)<<"### min_lat="<<throttle.get_min_lat_interval()<<", target_lat="<<throttle.get_target_delay()<<dendl;
           throttle.compare_latency(system_now);
-          dout(1)<<__func__<<" current time="<<system_now<<", block timestamp="<<throttle.get_block_next()<<", flag="<<throttle.get_should_block()<<dendl;
-          dout(1)<<__func__<<" min_delay= "<<throttle.get_min_lat_interval()<<dendl;
+          dout(10)<<"### current time="<<system_now<<", blocking_timestamp="<<throttle.get_block_next()<<dendl;
+          dout(10)<<"###3 pre_bd="<<throttle.get_pre_blocking_dur()<<", cur_bd="<<throttle.get_cur_blocking_dur()<<dendl;
+          //dout(1)<<__func__<<" current time="<<system_now<<", block timestamp="<<throttle.get_block_next()<<", flag="<<throttle.get_should_block()<<dendl;
+          //dout(1)<<__func__<<" min_delay= "<<throttle.get_min_lat_interval()<<dendl;
           throttle.count_reset();
           throttle.set_min_lat_interval(utime_t{0,0});
           dout(10) << __func__ << "###2 committing " << kv_queue.size()
@@ -12384,14 +12402,13 @@ int BlueStore::queue_transactions(
   auto tstart = mono_clock::now();
 
   // codel: blocking the current thread
-  dout(10)<<"###0 enable_Codel="<<cct->_conf->enable_codel<<", should_block="<<throttle.get_should_block()<<dendl;
   //if(cct->_conf->enable_codel && throttle.get_should_block()) {
   if(cct->_conf->enable_codel) {
     // codel: block the osd_op_tp thread
-    dout(10)<<"###1 should_block="<<throttle.get_should_block()<<dendl;
     std::unique_lock<std::mutex> t_lk{throttle.t_mtx};
     //while (throttle.get_should_block()) {
         std::chrono::time_point<mono_clock> cur_block_time = mono_clock::now();
+        dout(10)<<"###(0) current time="<<cur_block_time<<", block_time="<<throttle.get_block_next()<<dendl;
         if(cur_block_time < throttle.get_block_next()) { 
             dout(10) << "###(1) lock start = "<< mono_clock::now()<<dendl;
             throttle.t_cond.wait_until(t_lk,throttle.get_block_next());
