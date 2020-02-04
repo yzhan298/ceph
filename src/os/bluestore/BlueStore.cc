@@ -11632,18 +11632,19 @@ void BlueStore::_kv_sync_thread()
       kvq_avg_size = kvq_sum / kvq_count; 
       //utime_t avg_kvq_lat_sum;
       //utime_t avg_kvq_lat;
-      /*if(kv_queue.size() > throttle.kv_queue_upper_bound_size && kv_queue_unsubmitted.size() > throttle.kv_queue_upper_bound_size) {
+      if(kv_queue.size() > throttle.kv_queue_upper_bound_size && kv_queue_unsubmitted.size() > throttle.kv_queue_upper_bound_size) {
           kv_committing.insert(kv_committing.begin(),
             std::make_move_iterator(kv_queue.begin()),
             std::make_move_iterator(kv_queue.begin()+throttle.kv_queue_upper_bound_size));
           kv_queue.erase(kv_queue.begin(), kv_queue.begin()+throttle.kv_queue_upper_bound_size);
 
-          kv_submitting.swap(kv_submitting.begin(),
+          kv_submitting.insert(kv_submitting.begin(),
             std::make_move_iterator(kv_queue_unsubmitted.begin()),
             std::make_move_iterator(kv_queue_unsubmitted.begin()+throttle.kv_queue_upper_bound_size));
             kv_queue_unsubmitted.erase(kv_queue_unsubmitted.begin(),kv_queue_unsubmitted.begin()+throttle.kv_queue_upper_bound_size);
-      }*/
-  
+      }
+      
+      
       /*utime_t before_dump = ceph_clock_now();
       std::chrono::time_point<mono_clock> system_now = mono_clock::now();
       if(kv_queue.size() > throttle.kv_queue_upper_bound_size) {
@@ -11754,12 +11755,12 @@ void BlueStore::_kv_sync_thread()
       }else {
           kv_committing.swap(kv_queue);
       }*/
-      /*if(kv_committing.empty() && kv_submitting.empty()) {
+      if(kv_committing.empty() && kv_submitting.empty()) {
           kv_committing.swap(kv_queue);
-          //kv_submitting.swap(kv_queue_unsubmitted);
-      }*/
-      kv_committing.swap(kv_queue);
-      kv_submitting.swap(kv_queue_unsubmitted);
+          kv_submitting.swap(kv_queue_unsubmitted);
+      }
+      //kv_committing.swap(kv_queue);
+      //kv_submitting.swap(kv_queue_unsubmitted);
       deferred_done.swap(deferred_done_queue);
       deferred_stable.swap(deferred_stable_queue);
       aios = kv_ios;
@@ -11937,11 +11938,12 @@ void BlueStore::_kv_sync_thread()
                   throttle.set_min_lat_interval(cur_queue_delay);
               }
           } 
-          dout(10)<<"### current time="<<system_now<<", blocking_timestamp="<<throttle.get_block_next()<<dendl;
-          dout(10)<<"### min_lat="<<throttle.get_min_lat_interval()<<", target_lat="<<throttle.get_target_delay()<<dendl;
+          dout(10)<<"###1 current time="<<system_now<<", blocking_timestamp="<<throttle.get_block_next()<<dendl;
+          dout(10)<<"###2 min_lat="<<throttle.get_min_lat_interval()<<", target_lat="<<throttle.get_target_delay()<<dendl;
           throttle.compare_latency(system_now);
-          dout(10)<<"### current time="<<system_now<<", blocking_timestamp="<<throttle.get_block_next()<<dendl;
-          dout(10)<<"###3 pre_bd="<<throttle.get_pre_blocking_dur()<<", cur_bd="<<throttle.get_cur_blocking_dur()<<dendl;
+          dout(1)<<"current_blocking_dur="<<throttle.get_cur_blocking_dur()<<dendl;
+          dout(10)<<"###3 current time="<<system_now<<", blocking_timestamp="<<throttle.get_block_next()<<dendl;
+          dout(10)<<"###4 pre_bd="<<throttle.get_pre_blocking_dur()<<", cur_bd="<<throttle.get_cur_blocking_dur()<<dendl;
           //dout(1)<<__func__<<" current time="<<system_now<<", block timestamp="<<throttle.get_block_next()<<", flag="<<throttle.get_should_block()<<dendl;
           //dout(1)<<__func__<<" min_delay= "<<throttle.get_min_lat_interval()<<dendl;
           throttle.count_reset();
