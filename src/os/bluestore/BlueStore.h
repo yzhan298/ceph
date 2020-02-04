@@ -1745,7 +1745,7 @@ public:
     // constants
     utime_t target_queue_delay {0, 22000000}; // (time_t timestamp, int nanoseconds):the target queue delay (eg: 0.011s = {0, 11000000})
     std::chrono::nanoseconds init_blocking_dur{100000};
-    size_t kv_queue_upper_bound_size = 100; // upper bound size of batch(eg: allowing max 5 txcs to be committed in BlueStore for a batch)
+    size_t kv_queue_upper_bound_size = 20; // upper bound size of batch(eg: allowing max 5 txcs to be committed in BlueStore for a batch)
     std::chrono::nanoseconds const_lat{100000};
     std::condition_variable t_cond;
     std::mutex t_mtx;
@@ -1804,11 +1804,11 @@ public:
             block_next = now + blocking_dur(); // increase blocking duration 
             return true;
 	}*/
-        if(cur_blocking_dur == std::chrono::nanoseconds::zero() && pre_blocking_dur == std::chrono::nanoseconds::zero()) {
+        /*if(cur_blocking_dur == std::chrono::nanoseconds::zero() && pre_blocking_dur == std::chrono::nanoseconds::zero()) {
             if(min_lat_interval > target_queue_delay) {
                 cur_blocking_dur = init_blocking_dur;
             }
-        }
+        }*/
         // (1) plus/minus constant
         /*else {
             if(min_lat_interval <= target_queue_delay) {
@@ -1817,7 +1817,7 @@ public:
                 cur_blocking_dur = pre_blocking_dur + const_lat;
             }
         }*/
-        // (2) linear
+        // (2) [discarded] linear
         /*else {
             if(min_lat_interval <= target_queue_delay) {
                  cur_blocking_dur = std::chrono::nanoseconds{static_cast<long>(pre_blocking_dur.count()/sqrt(3))};
@@ -1825,7 +1825,7 @@ public:
                  cur_blocking_dur = pre_blocking_dur + const_lat;
             }
         }*/
-        // (3) slow start(blocking_dur incrase quickly and errors out)
+        // (3) [discarded] slow start(blocking_dur incrase quickly and errors out)
         /*else {
             if(min_lat_interval <= target_queue_delay) {
                  cur_blocking_dur = init_blocking_dur;
@@ -1833,7 +1833,7 @@ public:
                  cur_blocking_dur = std::chrono::nanoseconds{static_cast<long>(pre_blocking_dur.count()*2)};
             }
         }*/
-        // (4) plus const and quick reset(performance is bad)
+        // (4) [discarded] plus const and quick reset(performance is bad)
         /*else {
             if(min_lat_interval <= target_queue_delay) {
                  cur_blocking_dur = init_blocking_dur;
@@ -1843,15 +1843,13 @@ public:
             }
         }*/
         // (5) Additive increase/Multiplicative decrease 
-        else {
-            if(min_lat_interval <= target_queue_delay) {
-                 cur_blocking_dur = pre_blocking_dur / 2;
-            }else {
-                 //cur_blocking_dur = std::chrono::nanoseconds{static_cast<long>(pre_blocking_dur.count()*2)};
-                 cur_blocking_dur = pre_blocking_dur + const_lat;
-            }
+        if(min_lat_interval <= target_queue_delay) {
+             cur_blocking_dur = pre_blocking_dur / 2;
+        }else {
+             //cur_blocking_dur = std::chrono::nanoseconds{static_cast<long>(pre_blocking_dur.count()*2)};
+             cur_blocking_dur = pre_blocking_dur + const_lat;
         }
-
+        
         block_next = now + cur_blocking_dur;
     }
     
