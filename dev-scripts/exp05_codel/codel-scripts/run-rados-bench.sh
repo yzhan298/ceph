@@ -28,7 +28,8 @@ done
 
 printf '%s\n' "bs" "totaltime" "qdepth" "bluestore_kv_sync_lat" "bluestore_kvq_lat" "avg_rados_bench_throughput" "avg_rados_bench_lat" |  paste -sd ',' > ${DATA_FILE}
 #for qd in 1 16 32 48 64 80 96 112 128;do
-for qd in 1 16 32 48 64 80 96; do
+#for qd in 1 16 32 48 64 80 96; do
+for qd in 1 16 32 64; do
         #./run.sh $qd $bt
         sudo MON=1 OSD=1 MDS=0 ../src/vstart.sh -b -d -k -x -l --without-dashboard
         sudo bin/ceph osd pool create $pool 128 128
@@ -38,10 +39,17 @@ for qd in 1 16 32 48 64 80 96; do
         single_dump $qd
         echo benchmark stops!
 
+        echo time series plot start!
+        awk '{print $5}' out/osd.0.log | grep current_blocking_dur | grep -Eo '[+-]?[0-9]+([.][0-9]+)?' | tr ' ' ',' > dump-block-dur-${qd}.csv
+        export PLOTOUTNAME="dump-block-dur-${qd}.png"
+        export PLOTINNAME="dump-block-dur-${qd}.csv"
+        python plot_codel.py 
+        echo time series plot stops!
+
         sudo bin/ceph osd pool delete $pool $pool --yes-i-really-really-mean-it
         sudo ../src/stop.sh
 done
-#python plot_codel.py
+python plot_codel.py
 # move everything to a directory
 dn=codel-tests-$(date +"%Y_%m_%d_%I_%M_%p")
 mkdir -p ${dn} # create data if not created
