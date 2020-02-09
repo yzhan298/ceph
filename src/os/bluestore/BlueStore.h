@@ -1743,10 +1743,10 @@ private:
     uint64_t bound_count = 0; // used to control batch size(no-passing the upper bound)
 public:
     // constants
-    utime_t target_queue_delay {0, 22000000}; // (time_t timestamp, int nanoseconds):the target queue delay (eg: 0.011s = {0, 11000000})
+    utime_t target_queue_delay {0, 30000000}; // (time_t timestamp, int nanoseconds):the target queue delay (eg: 0.011s = {0, 11000000})
     std::chrono::nanoseconds init_blocking_dur{100000};
     size_t kv_queue_upper_bound_size = 20; // upper bound size of batch(eg: allowing max 5 txcs to be committed in BlueStore for a batch)
-    std::chrono::nanoseconds const_lat{100000};
+    std::chrono::nanoseconds const_lat{400000};
     std::condition_variable t_cond;
     std::mutex t_mtx;
     

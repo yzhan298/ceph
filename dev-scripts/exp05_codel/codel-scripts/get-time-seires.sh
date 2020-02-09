@@ -1,7 +1,7 @@
 #!/bin/bash
 # run rados bench and collect result
 bs=4096 #block size or object size (Bytes)
-totaltime=300 # running time (seconds)
+totaltime=60 # running time (seconds)
 
 # no need to change
 osd_count=1            	 	# number of OSDs
@@ -20,35 +20,36 @@ single_dump() {
         #avg_kvq_size=$(jq ".bluestore.bluestore_kv_queue_avg_size" $dump_state)
         avg_throughput_bench=$(grep "Bandwidth (MB/sec)" dump-rados-bench-${qdepth} | awk '{print $3}')
         avg_lat_bench=$(grep "Average Latency(s)" dump-rados-bench-${qdepth} | awk '{print $3}')
-        lat_50percentile= $(grep "50% Latency(s)" dump-rados-bench-${qdepth} | awk '{print $3}') 
-        lat_99percentile=$(grep "99% Latency(s)" dump-rados-bench-${qdepth} | awk '{print $3}')
         bluestore_kv_sync_lat=$(jq ".bluestore.kv_sync_lat.avgtime" $dump_state)
         bluestore_kvq_lat=$(jq ".bluestore.bluestore_kvq_lat.avgtime" $dump_state)
-        printf '%s\n' $bs $totaltime $qdepth $bluestore_kv_sync_lat $bluestore_kvq_lat $avg_throughput_bench $avg_lat_bench $lat_50percentile $lat_99percentile  | paste -sd ',' >> ${DATA_FILE}
+        printf '%s\n' $bs $totaltime $qdepth $bluestore_kv_sync_lat $bluestore_kvq_lat $avg_throughput_bench $avg_lat_bench  | paste -sd ',' >> ${DATA_FILE}
 done
 }
 
-printf '%s\n' "bs" "totaltime" "qdepth" "bluestore_kv_sync_lat" "bluestore_kvq_lat" "avg_rados_bench_throughput" "avg_rados_bench_lat" "50%_lat" "99%_lat" |  paste -sd ',' > ${DATA_FILE}
-for qd in 1 16 32 48 64 80 96 112 128;do
+printf '%s\n' "bs" "totaltime" "qdepth" "bluestore_kv_sync_lat" "bluestore_kvq_lat" "avg_rados_bench_throughput" "avg_rados_bench_lat" |  paste -sd ',' > ${DATA_FILE}
+#for qd in 1 16 32 48 64 80 96 112 128;do
 #for qd in 1 16 32 48 64 80 96; do
-#for qd in 1 16; do
+for qd in 1 16 32 64; do
         #./run.sh $qd $bt
-        sudo MON=1 OSD=1 MDS=0 ../src/vstart.sh -b -k -l --without-dashboard
+        sudo MON=1 OSD=1 MDS=0 ../src/vstart.sh -b -d -k -x -l --without-dashboard
         sudo bin/ceph osd pool create $pool 128 128
         
         echo benchmark starts!
-        sudo bin/rados bench -p mybench -b ${bs} -t ${qd} ${totaltime} write --no-cleanup > dump-rados-bench-${qd}
+        sudo bin/rados bench -p mybench -b ${bs} -o ${bs} -t ${qd} ${totaltime} write --no-cleanup > dump-rados-bench-${qd}
         single_dump $qd
         echo benchmark stops!
 
-        #export PLOTOUTNAME="dump-block-dur-${qd}.png"
-        #export PLOTINNAME="dump-block-dur-${qd}.csv"
-        #python plot_codel.py 
+        echo time series plot start!
+        awk '{print $5}' out/osd.0.log | grep current_blocking_dur | grep -Eo '[+-]?[0-9]+([.][0-9]+)?' | tr ' ' ',' > dump-block-dur-${qd}.csv
+        export PLOTOUTNAME="dump-block-dur-${qd}.png"
+        export PLOTINNAME="dump-block-dur-${qd}.csv"
+        python plot_codel.py 
+        echo time series plot stops!
 
         sudo bin/ceph osd pool delete $pool $pool --yes-i-really-really-mean-it
         sudo ../src/stop.sh
 done
-#python plot_codel.py
+python plot_codel.py
 # move everything to a directory
 dn=codel-tests-$(date +"%Y_%m_%d_%I_%M_%p")
 mkdir -p ${dn} # create data if not created

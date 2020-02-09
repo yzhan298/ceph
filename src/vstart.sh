@@ -595,7 +595,7 @@ prepare_conf() {
         num rgw = $CEPH_NUM_RGW
 
 [global]
-        debug bluestore = 1
+        debug bluestore = 0
 	debug mon = 0
         debug monc = 0
         debug mds = 0
@@ -810,16 +810,20 @@ start_mon() {
         for f in $MONS
         do
             if [ $msgr -eq 1 ]; then
+                echo "msgr = 1"
                 A="v1:$IP:$(($CEPH_PORT+$count+1))"
             fi
             if [ $msgr -eq 2 ]; then
+                echo "msgr = 2"
                 A="v2:$IP:$(($CEPH_PORT+$count+1))"
             fi
             if [ $msgr -eq 21 ]; then
+                echo "msgr = 2 and 1"
                 A="[v2:$IP:$(($CEPH_PORT+$count)),v1:$IP:$(($CEPH_PORT+$count+1))]"
             fi
             params+=("--addv" "$f" "$A")
-            mon_host="$mon_host $A"
+            #mon_host="$mon_host $A"
+            mon_host="$IP:$CEPH_PORT"
             wconf <<EOF
 [mon.$f]
         host = $HOSTNAME

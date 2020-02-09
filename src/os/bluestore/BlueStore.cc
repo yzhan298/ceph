@@ -11632,7 +11632,7 @@ void BlueStore::_kv_sync_thread()
       kvq_avg_size = kvq_sum / kvq_count; 
       //utime_t avg_kvq_lat_sum;
       //utime_t avg_kvq_lat;
-      if(kv_queue.size() > throttle.kv_queue_upper_bound_size && kv_queue_unsubmitted.size() > throttle.kv_queue_upper_bound_size) {
+      if(cct->_conf->enable_batch_bound && kv_queue.size() > throttle.kv_queue_upper_bound_size && kv_queue_unsubmitted.size() > throttle.kv_queue_upper_bound_size) {
           kv_committing.insert(kv_committing.begin(),
             std::make_move_iterator(kv_queue.begin()),
             std::make_move_iterator(kv_queue.begin()+throttle.kv_queue_upper_bound_size));

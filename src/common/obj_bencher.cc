@@ -283,6 +283,7 @@ int ObjBencher::aio_bench(
   data.min_latency = 9999.0; // this better be higher than initial latency!
   data.max_latency = 0;
   data.avg_latency = 0;
+  data.p99_lat = 0;
   data.latency_diff_sum = 0;
   data.object_contents = contentsChars;
   lock.unlock();
@@ -505,6 +506,7 @@ int ObjBencher::write_bench(int secondsToRun,
       goto ERR;
     }
     data.cur_latency = mono_clock::now() - start_times[slot];
+    data.lat_vec.push_back(data.cur_latency);
     total_latency += data.cur_latency.count();
     if( data.cur_latency.count() > data.max_latency)
       data.max_latency = data.cur_latency.count();
@@ -551,6 +553,7 @@ int ObjBencher::write_bench(int secondsToRun,
       goto ERR;
     }
     data.cur_latency = mono_clock::now() - start_times[slot];
+    data.lat_vec.push_back(data.cur_latency);
     total_latency += data.cur_latency.count();
     if (data.cur_latency.count() > data.max_latency)
       data.max_latency = data.cur_latency.count();
@@ -596,6 +599,13 @@ int ObjBencher::write_bench(int secondsToRun,
     latency_stddev = 0;
   }
 
+  sort(data.lat_vec.begin(), data.lat_vec.end());
+  //for(auto x : data.lat_vec) out(cout)<< x.count() << std::endl;
+  data.p99_lat = data.lat_vec[(int)(data.lat_vec.size()*0.99 - 1)].count();
+  data.p50_lat = data.lat_vec[(int)(data.lat_vec.size()*0.50 - 1)].count();
+  //out(cout) << "----------" << std::endl; 
+  //out(cout) << data.p99_lat << std::endl;
+  //out(cout) << "----------" << std::endl;
   if (!formatter) {
     out(cout) << "Total time run:         " << timePassed.count() << std::endl
        << "Total writes made:      " << data.finished << std::endl
@@ -611,6 +621,8 @@ int ObjBencher::write_bench(int secondsToRun,
        << "Min IOPS:               " << data.idata.min_iops << std::endl
        << "Average Latency(s):     " << data.avg_latency << std::endl
        << "Stddev Latency(s):      " << latency_stddev << std::endl
+       << "50% Latency(s):         " << data.p50_lat << std::endl
+       << "99% Latency(s):         " << data.p99_lat << std::endl
        << "Max latency(s):         " << data.max_latency << std::endl
        << "Min latency(s):         " << data.min_latency << std::endl;
   } else {
@@ -628,6 +640,8 @@ int ObjBencher::write_bench(int secondsToRun,
     formatter->dump_format("min_iops", "%d", data.idata.min_iops);
     formatter->dump_format("average_latency", "%f", data.avg_latency);
     formatter->dump_format("stddev_latency", "%f", latency_stddev);
+    formatter->dump_format("p50_latency", "%f", data.p50_lat);
+    formatter->dump_format("p99_latency", "%f", data.p99_lat);
     formatter->dump_format("max_latency", "%f", data.max_latency);
     formatter->dump_format("min_latency", "%f", data.min_latency);
   }
@@ -772,6 +786,7 @@ int ObjBencher::seq_read_bench(
       goto ERR;
     }
     total_latency += data.cur_latency.count();
+    
     if (data.cur_latency.count() > data.max_latency)
       data.max_latency = data.cur_latency.count();
     if (data.cur_latency.count() < data.min_latency)
@@ -849,6 +864,10 @@ int ObjBencher::seq_read_bench(
     iops_stddev = 0;
   }
 
+  sort(data.lat_vec.begin(), data.lat_vec.end());
+  data.p99_lat = data.lat_vec[(int)(data.lat_vec.size()*0.99 - 1)].count();
+  data.p50_lat = data.lat_vec[(int)(data.lat_vec.size()*0.50 - 1)].count();
+
   if (!formatter) {
     out(cout) << "Total time run:       " << timePassed.count() << std::endl
        << "Total reads made:     " << data.finished << std::endl
@@ -860,6 +879,8 @@ int ObjBencher::seq_read_bench(
        << "Max IOPS:             " << data.idata.max_iops << std::endl
        << "Min IOPS:             " << data.idata.min_iops << std::endl
        << "Average Latency(s):   " << data.avg_latency << std::endl
+       << "50% Latency(s):         " << data.p50_lat << std::endl
+       << "99% Latency(s):         " << data.p99_lat << std::endl
        << "Max latency(s):       " << data.max_latency << std::endl
        << "Min latency(s):       " << data.min_latency << std::endl;
   } else {
@@ -873,6 +894,8 @@ int ObjBencher::seq_read_bench(
     formatter->dump_format("max_iops", "%d", data.idata.max_iops);
     formatter->dump_format("min_iops", "%d", data.idata.min_iops);
     formatter->dump_format("average_latency", "%f", data.avg_latency);
+    formatter->dump_format("p50_latency", "%f", data.p50_lat);
+    formatter->dump_format("p99_latency", "%f", data.p99_lat);
     formatter->dump_format("max_latency", "%f", data.max_latency);
     formatter->dump_format("min_latency", "%f", data.min_latency);
   }

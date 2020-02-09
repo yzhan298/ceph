@@ -4779,6 +4779,10 @@ std::vector<Option> get_global_options() {
     .set_default(true)
     .set_description("enable bluestore codel flow control components"),
 
+    Option("enable_batch_bound", Option::TYPE_BOOL, Option::LEVEL_ADVANCED)
+    .set_default(false)
+    .set_description("enable bluestore committing batch upperbound"),
+
     Option("enable_throttle", Option::TYPE_BOOL, Option::LEVEL_ADVANCED)
     .set_default(true)
     .set_description("enable bluestore throttler(token bucket system)"),

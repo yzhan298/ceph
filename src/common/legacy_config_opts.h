@@ -1041,6 +1041,7 @@ OPTION(bluestore_sync_submit_transaction, OPT_BOOL) // submit kv txn in queueing
 OPTION(bluestore_fsck_read_bytes_cap, OPT_U64)
 OPTION(bluestore_fsck_quick_fix_threads, OPT_INT)
 OPTION(enable_codel, OPT_BOOL)
+OPTION(enable_batch_bound, OPT_BOOL)
 OPTION(enable_throttle, OPT_BOOL)
 OPTION(bluestore_throttle_bytes, OPT_U64)
 OPTION(bluestore_throttle_deferred_bytes, OPT_U64)

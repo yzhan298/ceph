@@ -47,9 +47,12 @@ struct bench_data {
   double min_latency;
   double max_latency;
   double avg_latency;
+  double p50_lat; // 50% latency
+  double p99_lat; // 99% latency
   struct bench_interval_data idata; // data that is updated by time intervals and not by events
   double latency_diff_sum;
   std::chrono::duration<double> cur_latency; //latency of last completed transaction - in seconds by default
+  vector<std::chrono::duration<double>> lat_vec; // vector stores all latency
   mono_time start_time; //start time for benchmark - use the monotonic clock as we'll measure the passage of time
   char *object_contents; //pointer to the contents written to each object
 };
