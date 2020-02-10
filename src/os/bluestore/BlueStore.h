@@ -1810,13 +1810,12 @@ public:
             }
         }*/
         // (1) plus/minus constant
-        /*else {
-            if(min_lat_interval <= target_queue_delay) {
-                cur_blocking_dur = pre_blocking_dur - const_lat;
-            }else {
-                cur_blocking_dur = pre_blocking_dur + const_lat;
-            }
-        }*/
+        if(min_lat_interval <= target_queue_delay) {
+            cur_blocking_dur = pre_blocking_dur - const_lat;
+        }else {
+            cur_blocking_dur = pre_blocking_dur + const_lat;
+        }
+        
         // (2) [discarded] linear
         /*else {
             if(min_lat_interval <= target_queue_delay) {
@@ -1843,12 +1842,12 @@ public:
             }
         }*/
         // (5) Additive increase/Multiplicative decrease 
-        if(min_lat_interval <= target_queue_delay) {
+        /*if(min_lat_interval <= target_queue_delay) {
              cur_blocking_dur = pre_blocking_dur / 2;
         }else {
              //cur_blocking_dur = std::chrono::nanoseconds{static_cast<long>(pre_blocking_dur.count()*2)};
              cur_blocking_dur = pre_blocking_dur + const_lat;
-        }
+        }*/
         
         block_next = now + cur_blocking_dur;
     }
