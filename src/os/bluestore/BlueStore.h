@@ -1743,7 +1743,7 @@ private:
     uint64_t bound_count = 0; // used to control batch size(no-passing the upper bound)
 public:
     // constants
-    utime_t target_queue_delay {0, 30000000}; // (time_t timestamp, int nanoseconds):the target queue delay (eg: 0.011s = {0, 11000000})
+    utime_t target_queue_delay {0, 20000000}; // (time_t timestamp, int nanoseconds):the target queue delay (eg: 0.011s = {0, 11000000})
     std::chrono::nanoseconds init_blocking_dur{100000};
     size_t kv_queue_upper_bound_size = 20; // upper bound size of batch(eg: allowing max 5 txcs to be committed in BlueStore for a batch)
     std::chrono::nanoseconds const_lat{400000};
@@ -1810,11 +1810,11 @@ public:
             }
         }*/
         // (1) plus/minus constant
-        if(min_lat_interval <= target_queue_delay) {
+        /*if(min_lat_interval <= target_queue_delay) {
             cur_blocking_dur = pre_blocking_dur - const_lat;
         }else {
             cur_blocking_dur = pre_blocking_dur + const_lat;
-        }
+        }*/
         
         // (2) [discarded] linear
         /*else {
@@ -1842,12 +1842,12 @@ public:
             }
         }*/
         // (5) Additive increase/Multiplicative decrease 
-        /*if(min_lat_interval <= target_queue_delay) {
+        if(min_lat_interval <= target_queue_delay) {
              cur_blocking_dur = pre_blocking_dur / 2;
         }else {
              //cur_blocking_dur = std::chrono::nanoseconds{static_cast<long>(pre_blocking_dur.count()*2)};
              cur_blocking_dur = pre_blocking_dur + const_lat;
-        }*/
+        }
         
         block_next = now + cur_blocking_dur;
     }

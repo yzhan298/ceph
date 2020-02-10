@@ -680,6 +680,7 @@ EOF
 	osd_op_num_shards = 1
 	enable_throttle = false
         enable_codel = true
+	enable_batch_bound = false
 	bluestore_throttle_bytes = 100000000
 	bluestore_throttle_deferred_bytes = 100000000
 	bluestore_throttle_cost_per_io = 0

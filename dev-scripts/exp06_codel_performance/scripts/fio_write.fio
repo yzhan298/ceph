@@ -1,0 +1,14 @@
+[global]
+ioengine=rbd
+clientname=admin
+pool=mybench
+rbdname=image1
+rw=write
+bs=4096
+runtime = 5
+direct = 1
+time_based=1
+;write_iops_log
+
+[fio-write]
+iodepth=128
