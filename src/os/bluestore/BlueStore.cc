@@ -4841,10 +4841,11 @@ int BlueStore::_open_bdev(bool create)
   ceph_assert(bdev == NULL);
   string p = path + "/block";
   bdev = BlockDevice::create(cct, p, aio_cb, static_cast<void*>(this), discard_cb, static_cast<void*>(this));
+  
   int r = bdev->open(p);
-  if (r < 0)
+  if (r < 0){
     goto fail;
-
+  }
   if (create && cct->_conf->bdev_enable_discard) {
     bdev->discard(0, bdev->get_size());
   }
@@ -6279,7 +6280,6 @@ int BlueStore::mkfs()
       min_alloc_size = cct->_conf->bluestore_min_alloc_size_ssd;
     }
   }
-  //dout(0) <<__func__<<" ### min_alloc_size="<< min_alloc_size<<dendl;
   _validate_bdev();
 
   // make sure min_alloc_size is power of 2 aligned.
@@ -6803,8 +6803,6 @@ void BlueStore::set_cache_shards(unsigned num)
 
 int BlueStore::_mount(bool kv_only, bool open_db)
 {
-  dout(1) << __func__ << " path " << path << dendl;
-
   _kv_only = kv_only;
 
   {
@@ -6871,7 +6869,6 @@ int BlueStore::_mount(bool kv_only, bool open_db)
 
   if (kv_only)
     return 0;
-
   r = _upgrade_super();
   if (r < 0) {
     goto out_db;
@@ -6904,7 +6901,6 @@ int BlueStore::_mount(bool kv_only, bool open_db)
 
     _check_legacy_statfs_alert();
   }
-
   mounted = true;
   return 0;
 
