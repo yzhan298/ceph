@@ -829,6 +829,7 @@ start_mon() {
 [mon.$f]
         host = $HOSTNAME
         mon data = $CEPH_DEV_DIR/mon.$f
+        mon addr = $IP:$(($CEPH_PORT+$count))
 EOF
             count=$(($count + 2))
         done
