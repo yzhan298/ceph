@@ -60,7 +60,6 @@ int KernelDevice::_lock()
 {
   dout(10) << __func__ << " " << fd_directs[WRITE_LIFE_NOT_SET] << dendl;
   int r = ::flock(fd_directs[WRITE_LIFE_NOT_SET], LOCK_EX | LOCK_NB);
-  derr<<"###{1} fd="<<fd_directs[WRITE_LIFE_NOT_SET]<<", r="<<r<<", WRITE_LIFE_NOT_SET="<<WRITE_LIFE_NOT_SET<<dendl;
   if (r < 0) {
     derr << __func__ << " flock failed on " << path << dendl;
     return -errno;
@@ -72,7 +71,7 @@ int KernelDevice::open(const string& p)
 {
   path = p;
   int r = 0, i = 0;
-  derr << __func__ << "### path " << path << dendl;
+  dout(10) << __func__ << " path " << path << dendl;
 
   for (i = 0; i < WRITE_LIFE_MAX; i++) {
     int fd = ::open(path.c_str(), O_RDWR | O_DIRECT);
@@ -126,10 +125,8 @@ int KernelDevice::open(const string& p)
     derr << __func__ << " posix_fadvise got: " << cpp_strerror(r) << dendl;
     goto out_fail;
   }
-  derr<<"###[1] r="<<r<<dendl;
   /*if (lock_exclusive) {
     r = _lock();
-    derr<<"###[2] r="<<r<<dendl;
     if (r < 0) {
       derr << __func__ << " failed to lock " << path << ": " << cpp_strerror(r)
 	   << dendl;
@@ -139,7 +136,6 @@ int KernelDevice::open(const string& p)
 
   struct stat st;
   r = ::fstat(fd_directs[WRITE_LIFE_NOT_SET], &st);
-  derr<<"###[3] r="<<r<<dendl;
   if (r < 0) {
     r = -errno;
     derr << __func__ << " fstat got " << cpp_strerror(r) << dendl;
@@ -189,7 +185,6 @@ int KernelDevice::open(const string& p)
   }
 
   r = _aio_start();
-  derr<<"###[4] r="<<r<<dendl;
   if (r < 0) {
     goto out_fail;
   }

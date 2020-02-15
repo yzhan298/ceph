@@ -4843,7 +4843,6 @@ int BlueStore::_open_bdev(bool create)
   bdev = BlockDevice::create(cct, p, aio_cb, static_cast<void*>(this), discard_cb, static_cast<void*>(this));
   
   int r = bdev->open(p);
-  derr<<"###(1) r="<<r<<", p="<<p<<dendl;
   if (r < 0){
     goto fail;
   }
@@ -4853,7 +4852,6 @@ int BlueStore::_open_bdev(bool create)
 
   if (bdev->supported_bdev_label()) {
     r = _check_or_set_bdev_label(p, bdev->get_size(), "main", create);
-    derr<<"###(2) r="<<r<<dendl;
     if (r < 0)
       goto fail_close;
   }
@@ -4866,7 +4864,6 @@ int BlueStore::_open_bdev(bool create)
   _set_max_defer_interval();
   // and set cache_size based on device type
   r = _set_cache_sizes();
-  derr<<"###(3) r="<<r<<", bs="<<block_size<<dendl;
   if (r < 0) {
     goto fail_close;
   }
@@ -6841,26 +6838,21 @@ int BlueStore::_mount(bool kv_only, bool open_db)
   }
 
   int r = _open_path();
-  derr<<"###1 r="<<r<<dendl;
   if (r < 0)
     return r;
   r = _open_fsid(false);
-  derr<<"###2 r="<<r<<dendl;
   if (r < 0)
     goto out_path;
 
   r = _read_fsid(&fsid);
-  derr<<"###3 r="<<r<<dendl;
   if (r < 0)
     goto out_fsid;
 
   r = _lock_fsid();
-  derr<<"###1 4="<<r<<dendl;
   if (r < 0)
     goto out_fsid;
 
   r = _open_bdev(false);
-  derr<<"###5 r="<<r<<dendl;
   if (r < 0)
     goto out_fsid;
 
@@ -6871,7 +6863,6 @@ int BlueStore::_mount(bool kv_only, bool open_db)
     ceph_assert(kv_only);
     r = _open_db(false, true);
   }
-  derr<<"###6 r="<<r<<dendl;
   if (r < 0) {
     goto out_bdev;
   }
@@ -6879,13 +6870,11 @@ int BlueStore::_mount(bool kv_only, bool open_db)
   if (kv_only)
     return 0;
   r = _upgrade_super();
-  derr<<"###7 r="<<r<<dendl;
   if (r < 0) {
     goto out_db;
   }
 
   r = _open_collections();
-  derr<<"###8 r="<<r<<dendl;
   if (r < 0)
     goto out_db;
 
@@ -10917,10 +10906,8 @@ void BlueStore::_txc_calc_cost(TransContext *txc)
   auto ios = 1 + txc->ioc.get_num_ios();
   //auto ios = 1; // this is for testing!
   auto cost = throttle_cost_per_io.load();
-  //dout(1) << "###1 throttle_cost_per_io="<<cost<<dendl;
   txc->cost = ios * cost + txc->bytes;
   //txc->cost = ios * cost; // this is for testing!
-  dout(10) << "###2 throttle_txc->cost="<<txc->cost <<", ios="<<ios << ", txc->bytes="<<txc->bytes << ", cost="<<cost<<dendl;
   txc->ios = ios;
   dout(10) << __func__ << " " << txc << " cost " << txc->cost << " ("
 	   << ios << " ios * " << cost << " + " << txc->bytes
@@ -12385,7 +12372,6 @@ int BlueStore::queue_transactions(
   TransContext *txc = _txc_create(static_cast<Collection*>(ch.get()), osr,
 				  &on_commit);
   dout(10) << "###state1="<<txc->state<<dendl; // should be 0, STATE_PREPARE
-  //dout(1) << "###1 txc->cost="<<txc->cost << dendl;
   for (vector<Transaction>::iterator p = tls.begin(); p != tls.end(); ++p) {
     txc->bytes += (*p).get_num_bytes();
     _txc_add_transaction(txc, &(*p));

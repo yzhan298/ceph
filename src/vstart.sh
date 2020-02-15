@@ -823,13 +823,12 @@ start_mon() {
                 A="[v2:$IP:$(($CEPH_PORT+$count)),v1:$IP:$(($CEPH_PORT+$count+1))]"
             fi
             params+=("--addv" "$f" "$A")
-            #mon_host="$mon_host $A"
-            mon_host="$IP:$CEPH_PORT"
+            mon_host="$mon_host $A"
+            #mon_host="$IP:$CEPH_PORT"
             wconf <<EOF
 [mon.$f]
         host = $HOSTNAME
         mon data = $CEPH_DEV_DIR/mon.$f
-        mon addr = $IP:$(($CEPH_PORT+$count))
 EOF
             count=$(($count + 2))
         done
