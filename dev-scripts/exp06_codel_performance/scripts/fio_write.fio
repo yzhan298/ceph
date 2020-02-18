@@ -3,12 +3,13 @@ ioengine=rbd
 clientname=admin
 pool=mybench
 rbdname=image1
-rw=write
-bs=4096
-runtime = 5
+rw=randwrite
+bs=16384
+size=163840000
+;time_based=1
+;runtime=60
 direct = 1
-time_based=1
 ;write_iops_log
 
 [fio-write]
-iodepth=128
+iodepth=48

@@ -51,6 +51,7 @@
 #include "BlockDevice.h"
 #include "BlueFS.h"
 #include "common/EventTrace.h"
+#include <fstream>
 
 class Allocator;
 class FreelistManager;
@@ -78,6 +79,7 @@ enum {
   l_bluestore_state_io_done_lat,
   l_bluestore_state_kv_queued_lat,
   l_bluestore_kv_queue_size,
+  l_bluestore_testing_committing_number,
   l_bluestore_kv_queue_avg_size,
   l_bluestore_state_kv_committing_lat,
   l_bluestore_state_kv_done_lat,
@@ -171,6 +173,7 @@ public:
 
   typedef map<uint64_t, bufferlist> ready_regions_t;
 
+  void dump_kvq_vector(ostream& out);
 
   struct BufferSpace;
   struct Collection;
@@ -1745,10 +1748,15 @@ public:
     // constants
     utime_t target_queue_delay {0, 20000000}; // (time_t timestamp, int nanoseconds):the target queue delay (eg: 0.011s = {0, 11000000})
     std::chrono::nanoseconds init_blocking_dur{100000};
-    size_t kv_queue_upper_bound_size = 20; // upper bound size of batch(eg: allowing max 5 txcs to be committed in BlueStore for a batch)
+    size_t kv_queue_upper_bound_size = 1; // upper bound size of batch(eg: allowing max 5 txcs to be committed in BlueStore for a batch)
     std::chrono::nanoseconds const_lat{100000};
     std::condition_variable t_cond;
     std::mutex t_mtx;
+    size_t committing_number = 0; // testing: track the commit number
+
+    vector<double> kv_sync_lat_vec; // flush + kv_commit
+    vector<double> kvq_lat_vec; // kv_queue_lat + kv_sync_lat
+    vector<uint64_t> txc_bytes_vec; // store txc->bytes
     
     //methods
 public:
@@ -1867,6 +1875,20 @@ public:
         if(q.size() == 1) {
             set_min_lat_interval(t);
         }
+    }
+   
+    template<class T> 
+    void write_csv(std::string filename, std::string colname, std::vector<T>& vec) {
+        // create an filestream object
+	std::ofstream csvfile(filename);
+        // add col name
+	csvfile << colname << "\n";
+	// add data
+	//std::sort(vec.begin(), vec.end());
+	for(auto e : vec) {
+            csvfile << e << "\n";
+	}
+	csvfile.close();
     }
     
     // timespec to std::chrono::duration (no use now)
@@ -2131,6 +2153,9 @@ private:
   int path_fd = -1;  ///< open handle to $path
   int fsid_fd = -1;  ///< open handle (locked) to $path/fsid
   bool mounted = false;
+  
+  class SocketHook;
+  SocketHook* asok_hook = nullptr;
 
   ceph::shared_mutex coll_lock = ceph::make_shared_mutex("BlueStore::coll_lock");  ///< rwlock to protect coll_map
   mempool::bluestore_cache_other::unordered_map<coll_t, CollectionRef> coll_map;

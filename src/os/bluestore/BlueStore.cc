@@ -42,6 +42,7 @@
 #include "perfglue/heap_profiler.h"
 #include "common/blkdev.h"
 #include "common/numa.h"
+#include "common/admin_socket.h"
 
 #if defined(WITH_LTTNG)
 #define TRACEPOINT_DEFINE
@@ -4111,6 +4112,69 @@ void BlueStore::handle_discard(interval_set<uint64_t>& to_release)
   alloc->release(to_release);
 }
 
+class BlueStore::SocketHook : public AdminSocketHook {
+  BlueStore* store;
+public:
+static BlueStore::SocketHook* create(BlueStore* store)
+  {
+    BlueStore::SocketHook* hook = nullptr;
+    AdminSocket* admin_socket = store->cct->get_admin_socket();
+    if (admin_socket) {
+      hook = new BlueStore::SocketHook(store);
+      int r = admin_socket->register_command("dump kvq vector",
+                                             hook,
+                                             "dump vectors contains kvq_lat");
+      if(r != 0) {
+        delete hook;
+        hook = nullptr;
+      }
+    }
+    return hook;
+  }
+  ~SocketHook() {
+    AdminSocket* admin_socket = store->cct->get_admin_socket();
+    admin_socket->unregister_commands(this);
+  }
+private:
+  SocketHook(BlueStore* store) :
+    store(store) {}
+  int call(std::string_view command, const cmdmap_t& cmdmap,
+           Formatter *f,
+           std::ostream& ss,
+           bufferlist& out) override {
+    if (command == "dump kvq vector") {
+      store->dump_kvq_vector(ss);
+    }
+    return 0;
+  }
+};
+
+void BlueStore::dump_kvq_vector(ostream& out) {
+   // dump the original vectors of kvq_lat and kv_sync_lat
+  throttle.write_csv("kvq_lat_vec.csv", "kvq_lat", throttle.kvq_lat_vec);
+  throttle.write_csv("kv_sync_lat_vec.csv", "kv_sync_lat", throttle.kv_sync_lat_vec);
+  throttle.write_csv("txc_bytes_vec.csv","txc_size", throttle.txc_bytes_vec);
+  // sort the vectors to get percentile data
+  std::sort(throttle.kvq_lat_vec.begin(), throttle.kvq_lat_vec.end());
+  std::sort(throttle.kv_sync_lat_vec.begin(), throttle.kv_sync_lat_vec.end());
+
+  double kvq_p99_lat = throttle.kvq_lat_vec[(int)(throttle.kvq_lat_vec.size()*0.99 - 1)];
+  double kvq_p95_lat = throttle.kvq_lat_vec[(int)(throttle.kvq_lat_vec.size()*0.95 - 1)];
+  double kvq_median_lat = throttle.kvq_lat_vec[(int)(throttle.kvq_lat_vec.size()*0.50 - 1)];
+  double kvq_min_lat = throttle.kvq_lat_vec[0];
+  
+  double kv_sync_p99_lat = throttle.kv_sync_lat_vec[(int)(throttle.kv_sync_lat_vec.size()*0.99 - 1)];
+  double kv_sync_p95_lat = throttle.kv_sync_lat_vec[(int)(throttle.kv_sync_lat_vec.size()*0.95 - 1)];
+  double kv_sync_median_lat = throttle.kv_sync_lat_vec[(int)(throttle.kv_sync_lat_vec.size()*0.50 - 1)];
+  double kv_sync_min_lat = throttle.kv_sync_lat_vec[0];
+
+  vector<double> kvq_lat_analysis_vec{kvq_p99_lat, kvq_p95_lat, kvq_median_lat, kvq_min_lat, kv_sync_p99_lat, kv_sync_p95_lat, kv_sync_median_lat, kv_sync_min_lat};  
+  throttle.write_csv("kvq_lat_analysis_vec.csv", "latency(nsec)", kvq_lat_analysis_vec);
+  
+ out << "the vector is dumped" << "\n";
+
+}
+
 BlueStore::BlueStore(CephContext *cct, const string& path)
   : BlueStore(cct, path, 0) {}
 
@@ -4129,6 +4193,7 @@ BlueStore::BlueStore(CephContext *cct,
   _init_logger();
   cct->_conf.add_observer(this);
   set_cache_shards(1);
+  asok_hook = SocketHook::create(this);
 }
 
 BlueStore::~BlueStore()
@@ -4500,6 +4565,8 @@ void BlueStore::_init_logger()
     "Average kv_queued state latency");
   b.add_u64(l_bluestore_kv_queue_size, "bluestore_kv_queue_size",
 		  "Observe the kv_queue size");
+  b.add_u64(l_bluestore_testing_committing_number, "bluestore_testing_committing_number",
+		                    "Observe the testing committing number");
   b.add_u64(l_bluestore_kv_queue_avg_size, "bluestore_kv_queue_avg_size",
 		  "Observe the average kv_queue size");
   b.add_time_avg(l_bluestore_state_kv_committing_lat, "state_kv_commiting_lat",
@@ -11636,9 +11703,10 @@ void BlueStore::_kv_sync_thread()
             std::make_move_iterator(kv_queue_unsubmitted.begin()),
             std::make_move_iterator(kv_queue_unsubmitted.begin()+throttle.kv_queue_upper_bound_size));
             kv_queue_unsubmitted.erase(kv_queue_unsubmitted.begin(),kv_queue_unsubmitted.begin()+throttle.kv_queue_upper_bound_size);
+	    throttle.committing_number++;
       }
-      
-      
+      logger->set(l_bluestore_testing_committing_number, throttle.committing_number); 
+      //dout(0)<<"### kv_committing size="<<kv_committing.size()<<"kv_queue.size()="<<kv_queue.size() << dendl; 
       /*utime_t before_dump = ceph_clock_now();
       std::chrono::time_point<mono_clock> system_now = mono_clock::now();
       if(kv_queue.size() > throttle.kv_queue_upper_bound_size) {
@@ -11921,6 +11989,9 @@ void BlueStore::_kv_sync_thread()
               txc->time_measure_end = codel_after_commit;
               auto cur_queue_delay = txc->time_measure_end - txc->time_kvq_in;
               logger->tinc(l_bluestore_kvq_lat, cur_queue_delay); // kv queueing latency (from kv_qeueue enqueue to commit finish)
+	      throttle.kvq_lat_vec.push_back((double)cur_queue_delay.to_nsec()/1000000000);
+              throttle.txc_bytes_vec.push_back(txc->bytes);
+	      //dout(0)<<"### cur_queue_delay.to_nsec()="<<cur_queue_delay.to_nsec()<<", vec_size="<<throttle.kvq_lat_vec.size()<<dendl;
               if(throttle.count_cur() != kv_committing.size() && kv_committing.size() > 1) {
                   if(throttle.get_min_lat_interval() == utime_t{0,0}) {
                       throttle.set_min_lat_interval(cur_queue_delay);
@@ -11935,7 +12006,7 @@ void BlueStore::_kv_sync_thread()
           dout(10)<<"###1 current time="<<system_now<<", blocking_timestamp="<<throttle.get_block_next()<<dendl;
           dout(10)<<"###2 min_lat="<<throttle.get_min_lat_interval()<<", target_lat="<<throttle.get_target_delay()<<dendl;
           throttle.compare_latency(system_now);
-          dout(1)<<"current_blocking_dur="<<throttle.get_cur_blocking_dur()<<dendl;
+          dout(10)<<"current_blocking_dur="<<throttle.get_cur_blocking_dur()<<dendl;
           dout(10)<<"###3 current time="<<system_now<<", blocking_timestamp="<<throttle.get_block_next()<<dendl;
           dout(10)<<"###4 pre_bd="<<throttle.get_pre_blocking_dur()<<", cur_bd="<<throttle.get_cur_blocking_dur()<<dendl;
           //dout(1)<<__func__<<" current time="<<system_now<<", block timestamp="<<throttle.get_block_next()<<", flag="<<throttle.get_should_block()<<dendl;
@@ -11995,6 +12066,7 @@ void BlueStore::_kv_sync_thread()
 	  << " in " << dur
 	  << " (" << dur_flush << " flush + " << dur_kv << " kv commit)"
 	  << dendl;
+	throttle.kv_sync_lat_vec.push_back((double)dur.count()/1000000000);
 	log_latency("kv_flush",
 	  l_bluestore_kv_flush_lat,
 	  dur_flush,
@@ -12371,11 +12443,12 @@ int BlueStore::queue_transactions(
   // prepare
   TransContext *txc = _txc_create(static_cast<Collection*>(ch.get()), osr,
 				  &on_commit);
-  dout(10) << "###state1="<<txc->state<<dendl; // should be 0, STATE_PREPARE
   for (vector<Transaction>::iterator p = tls.begin(); p != tls.end(); ++p) {
+    //dout(0)<<"###1 transaction size="<< (*p).get_num_bytes() << dendl;
     txc->bytes += (*p).get_num_bytes();
     _txc_add_transaction(txc, &(*p));
   }
+  //dout(0)<<"###2 trans context size="<<txc->bytes<<dendl;
   _txc_calc_cost(txc);
 
   _txc_write_nodes(txc, txc->t);
