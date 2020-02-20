@@ -4154,6 +4154,12 @@ void BlueStore::dump_kvq_vector(ostream& out) {
   throttle.write_csv("kvq_lat_vec.csv", "kvq_lat", throttle.kvq_lat_vec);
   throttle.write_csv("kv_sync_lat_vec.csv", "kv_sync_lat", throttle.kv_sync_lat_vec);
   throttle.write_csv("txc_bytes_vec.csv","txc_size", throttle.txc_bytes_vec);
+  if(throttle.kv_sync_lat_vec.size() > 10) {
+      // remove first and last 5 elements for stable results
+      throttle.kvq_lat_vec = vector<double>(throttle.kvq_lat_vec.begin()+5, throttle.kvq_lat_vec.end()-5);
+      throttle.kv_sync_lat_vec = vector<double>(throttle.kv_sync_lat_vec.begin()+5, throttle.kv_sync_lat_vec.end()-5);
+      throttle.txc_bytes_vec = vector<uint64_t>(throttle.txc_bytes_vec.begin()+5, throttle.txc_bytes_vec.end()-5);
+  }
   // sort the vectors to get percentile data
   std::sort(throttle.kvq_lat_vec.begin(), throttle.kvq_lat_vec.end());
   std::sort(throttle.kv_sync_lat_vec.begin(), throttle.kv_sync_lat_vec.end());

@@ -1,6 +1,0 @@
-bs,totaltime,qdepth,bluestore_kv_sync_lat,bluestore_kvq_lat,avg_rados_bench_throughput,avg_rados_bench_lat
-4096,60,1,0.237511,0.0164387
-4096,60,16,2.5158,0.0248362
-4096,60,32,2.43335,0.0502967
-4096,60,48,2.75555,0.0680343
-4096,60,64,2.85836,0.0874455
