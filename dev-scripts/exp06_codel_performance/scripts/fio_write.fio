@@ -4,12 +4,12 @@ clientname=admin
 pool=mybench
 rbdname=image1
 rw=randwrite
-bs=16384
-size=163840000
-;time_based=1
-;runtime=60
+bs=4k
+;size=838860800000
+time_based=1
+runtime=10
 direct = 1
 ;write_iops_log
 
 [fio-write]
-iodepth=48
+iodepth=16

@@ -4153,7 +4153,10 @@ void BlueStore::dump_kvq_vector(ostream& out) {
    // dump the original vectors of kvq_lat and kv_sync_lat
   throttle.write_csv("kvq_lat_vec.csv", "kvq_lat", throttle.kvq_lat_vec);
   throttle.write_csv("kv_sync_lat_vec.csv", "kv_sync_lat", throttle.kv_sync_lat_vec);
-  throttle.write_csv("txc_bytes_vec.csv","txc_size", throttle.txc_bytes_vec);
+  throttle.write_csv("txc_bytes_vec.csv", "txc_size", throttle.txc_bytes_vec);
+  // dump codel related vectors
+  throttle.write_csv("kv_queue_size_vec.csv", "kv_queue_size", throttle.kv_queue_size_vec);
+  throttle.write_csv("blocking_dur_vec.csv", "blocking_dur", throttle.blocking_dur_vec);
   if(throttle.kv_sync_lat_vec.size() > 10) {
       // remove first and last 5 elements for stable results
       throttle.kvq_lat_vec = vector<double>(throttle.kvq_lat_vec.begin()+5, throttle.kvq_lat_vec.end()-5);
@@ -11699,6 +11702,7 @@ void BlueStore::_kv_sync_thread()
       kvq_avg_size = kvq_sum / kvq_count; 
       //utime_t avg_kvq_lat_sum;
       //utime_t avg_kvq_lat;
+      throttle.kv_queue_size_vec.push_back(kv_queue.size());
       if(cct->_conf->enable_batch_bound && kv_queue.size() > throttle.kv_queue_upper_bound_size && kv_queue_unsubmitted.size() > throttle.kv_queue_upper_bound_size) {
           kv_committing.insert(kv_committing.begin(),
             std::make_move_iterator(kv_queue.begin()),
@@ -12011,7 +12015,8 @@ void BlueStore::_kv_sync_thread()
           } 
           dout(10)<<"###1 current time="<<system_now<<", blocking_timestamp="<<throttle.get_block_next()<<dendl;
           dout(10)<<"###2 min_lat="<<throttle.get_min_lat_interval()<<", target_lat="<<throttle.get_target_delay()<<dendl;
-          throttle.compare_latency(system_now);
+          throttle.compare_latency(system_now); // generate blocking timestamp
+	  throttle.blocking_dur_vec.push_back(throttle.get_cur_blocking_dur()); // add blocking time to vector
           dout(10)<<"current_blocking_dur="<<throttle.get_cur_blocking_dur()<<dendl;
           dout(10)<<"###3 current time="<<system_now<<", blocking_timestamp="<<throttle.get_block_next()<<dendl;
           dout(10)<<"###4 pre_bd="<<throttle.get_pre_blocking_dur()<<", cur_bd="<<throttle.get_cur_blocking_dur()<<dendl;
