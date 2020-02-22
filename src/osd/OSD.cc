@@ -3076,12 +3076,37 @@ will start to track new ops received afterwards.";
     }
     f->close_section(); // entries
     f->close_section(); // network_ping_times
-  } else {
+  } 
+  else if(prefix == "dump opq vector") {
+    lock_guard l(osd_lock);
+    dump_opq_vector();
+  } 
+  else {
     ceph_abort_msg("broken asok registration");
   }
 
  out:
   on_finish(ret, ss.str(), outbl);
+}
+
+template<class T>
+void OSD::write_csv(std::string filename, std::string colname, std::vector<T>& vec) {
+    // create an filestream object
+    std::ofstream csvfile(filename);
+    // add col name
+    csvfile << colname << "\n";
+    // add data
+    //std::sort(vec.begin(), vec.end());
+    for(auto e : vec) {
+        csvfile << e << "\n";
+    }
+    csvfile.close();
+}
+
+void OSD::dump_opq_vector() {
+  //sdata->pqueue->get_size_slow(), get_io_queue(), opqueue 
+  write_csv("opq_vec.csv", "opq_vec", opq_vec); 
+   
 }
 
 class TestOpsSocketHook : public AdminSocketHook {
@@ -3771,6 +3796,10 @@ void OSD::final_init()
     "dump_osd_network name=value,type=CephInt,req=false", asok_hook,
     "Dump osd heartbeat network ping times");
   ceph_assert(r == 0);
+
+  r = admin_socket->register_command("dump opq vector",
+		  			asok_hook,
+					"dump op_queue vector");
 
   test_ops_hook = new TestOpsSocketHook(&(this->service), this->store);
   // Note: pools are CephString instead of CephPoolname because
@@ -9536,6 +9565,7 @@ void OSD::enqueue_op(spg_t pg, OpRequestRef&& op, epoch_t epoch)
     OpQueueItem(
       unique_ptr<OpQueueItem::OpQueueable>(new PGOpItem(pg, std::move(op))),
       cost, priority, stamp, owner, epoch));
+  opq_vec.push_back(op_shardedwq.get_size_of_all_shards());
 }
 
 void OSD::enqueue_peering_evt(spg_t pgid, PGPeeringEventRef evt)

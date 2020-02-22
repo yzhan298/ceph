@@ -60,6 +60,7 @@
 #include "messages/MOSDOp.h"
 #include "common/EventTrace.h"
 #include "osd/osd_perf_counters.h"
+#include <fstream>
 
 #define CEPH_OSD_PROTOCOL    10 /* cluster internal */
 
@@ -1133,6 +1134,12 @@ public:
   void update_log_config();
   void check_config();
 
+  // codel: check op_queue size
+  vector<unsigned> opq_vec;
+  template<class T>
+  void write_csv(std::string filename, std::string colname, std::vector<T>& vec);
+  void dump_opq_vector();
+  
 protected:
 
   const double OSD_TICK_INTERVAL = { 1.0 };
@@ -1684,6 +1691,17 @@ protected:
 	sdata->pqueue->dump(f);
 	f->close_section();
       }
+    }
+    
+    unsigned get_size_of_all_shards() {
+      unsigned total_size = 0;
+      for(uint32_t i = 0; i < osd->num_shards; i++) {
+	auto &&sdata = osd->shards[i];
+        //std::scoped_lock l{sdata->shard_lock};
+	std::lock_guard l(sdata->shard_lock);
+	total_size += sdata->pqueue->get_size_slow();
+      }
+      return total_size;
     }
 
     bool is_shard_empty(uint32_t thread_index) override {

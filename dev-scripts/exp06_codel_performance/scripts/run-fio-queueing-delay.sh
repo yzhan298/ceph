@@ -56,6 +56,7 @@ for qd in {16..96..16}; do
 	mv ./kv_sync_lat_vec.csv ./dump_kv_sync_lat_vec-${qd}.csv
 	mv ./txc_bytes_vec.csv ./dump_txc_bytes_vec-${qd}.csv
 	mv ./kvq_lat_analysis_vec.csv ./dump_kvq_lat_analysis_vec-${qd}.csv
+	mv ./blocking_dur_vec.csv ./dump_blocking_dur_vec-${qd}.csv
         # it contains kvq_p99_lat, kvq_p95_lat, kvq_median_lat, kvq_min_lat, kv_sync_p99_lat, kv_sync_p95_lat, kv_sync_median_lat, kv_sync_min_lat
         # process kvq_lat.csv and kv_cync_lat.csv
 	INPUTCSV=dump_kvq_lat_analysis_vec-${qd}.csv
@@ -67,6 +68,10 @@ for qd in {16..96..16}; do
 	kv_sync_p95_lat=$(awk 'BEGIN { FS = "," } ; NR == 7{ print $1 }' < $INPUTCSV)
 	kv_sync_median_lat=$(awk 'BEGIN { FS = "," } ; NR == 8{ print $1 }' < $INPUTCSV)
 	kv_sync_min_lat=$(awk 'BEGIN { FS = "," } ; NR == 9{ print $1 }' < $INPUTCSV)
+
+	sudo bin/ceph daemon osd.0 dump opq vector
+	mv ./opq_vec.csv ./dump_opq_vec-${qd}.csv
+
 
 	single_dump $qd
         echo benchmark stops!
