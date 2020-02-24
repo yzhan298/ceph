@@ -1764,7 +1764,7 @@ public:
     // 2. kvq size 
     // 3. blocking duration vector
     vector<size_t> kv_queue_size_vec; // number of txcs in kv_queue
-    vector<std::chrono::nanoseconds> blocking_dur_vec; // duration of blocking of dequeueing of op_queue
+    vector<double> blocking_dur_vec; // duration of blocking of dequeueing of op_queue
 
     //methods
 public:

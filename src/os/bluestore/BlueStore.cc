@@ -4159,9 +4159,9 @@ void BlueStore::dump_kvq_vector(ostream& out) {
   throttle.write_csv("blocking_dur_vec.csv", "blocking_dur", throttle.blocking_dur_vec);
   if(throttle.kv_sync_lat_vec.size() > 10) {
       // remove first and last 5 elements for stable results
-      throttle.kvq_lat_vec = vector<double>(throttle.kvq_lat_vec.begin()+5, throttle.kvq_lat_vec.end()-5);
-      throttle.kv_sync_lat_vec = vector<double>(throttle.kv_sync_lat_vec.begin()+5, throttle.kv_sync_lat_vec.end()-5);
-      throttle.txc_bytes_vec = vector<uint64_t>(throttle.txc_bytes_vec.begin()+5, throttle.txc_bytes_vec.end()-5);
+      throttle.kvq_lat_vec = vector<double>(throttle.kvq_lat_vec.begin()+10, throttle.kvq_lat_vec.end()-10);
+      throttle.kv_sync_lat_vec = vector<double>(throttle.kv_sync_lat_vec.begin()+10, throttle.kv_sync_lat_vec.end()-10);
+      throttle.txc_bytes_vec = vector<uint64_t>(throttle.txc_bytes_vec.begin()+10, throttle.txc_bytes_vec.end()-10);
   }
   // sort the vectors to get percentile data
   std::sort(throttle.kvq_lat_vec.begin(), throttle.kvq_lat_vec.end());
@@ -12016,7 +12016,7 @@ void BlueStore::_kv_sync_thread()
           dout(10)<<"###1 current time="<<system_now<<", blocking_timestamp="<<throttle.get_block_next()<<dendl;
           dout(10)<<"###2 min_lat="<<throttle.get_min_lat_interval()<<", target_lat="<<throttle.get_target_delay()<<dendl;
           throttle.compare_latency(system_now); // generate blocking timestamp
-	  throttle.blocking_dur_vec.push_back(throttle.get_cur_blocking_dur()); // add blocking time to vector
+	  throttle.blocking_dur_vec.push_back((double)throttle.get_cur_blocking_dur().count()/1000000000); // add blocking time to vector
           dout(10)<<"current_blocking_dur="<<throttle.get_cur_blocking_dur()<<dendl;
           dout(10)<<"###3 current time="<<system_now<<", blocking_timestamp="<<throttle.get_block_next()<<dendl;
           dout(10)<<"###4 pre_bd="<<throttle.get_pre_blocking_dur()<<", cur_bd="<<throttle.get_cur_blocking_dur()<<dendl;

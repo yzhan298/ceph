@@ -4,7 +4,7 @@
 #sleep 5
 
 # run rbd bench and collect result
-bs="4k"  # block size or object size (Bytes)
+bs="4096"  # block size or object size (Bytes)
 rw="randwrite"  # io type
 fioruntime=30  # seconds
 iototal="400m" # total bytes of io
@@ -13,7 +13,7 @@ iototal="400m" # total bytes of io
 # no need to change
 osd_count=1            	 	# number of OSDs
 shard_count=1           	# number of sharded op_queue
-DATA_FILE=dump-queueing-delay.csv  # output file name
+DATA_FILE=dump-lat-analysis.csv  # output file name
 pool="mybench"
 
 single_dump() {
@@ -23,18 +23,17 @@ single_dump() {
         sudo bin/ceph daemon osd.0 perf dump 2>/dev/null > $dump_state
 	#avg_throughput_bench=$(grep "Bandwidth (MB/sec)" dump-rados-bench-${qdepth}) #| awk '{print $3}')
 	#bw=$(grep BW dump-fio-bench-${qdepth} |  awk '{print $3}') # | grep -o '[0-9]*')
-	clt_bw=$(jq '.jobs[0].write.bw' dump-fio-bench-${qdepth}) # KB/s
 	clt_bw=$(echo "$(jq '.jobs[0].write.bw' dump-fio-bench-${qdepth}) / 1024" | bc -l) # MB/s
 	clt_lat=$(echo "$(jq '.jobs[0].write.lat_ns.mean' dump-fio-bench-${qdepth}) / 1000000000" | bc -l) # seconds
         bluestore_kv_sync_lat=$(jq ".bluestore.kv_sync_lat.avgtime" $dump_state)
         bluestore_kvq_lat=$(jq ".bluestore.bluestore_kvq_lat.avgtime" $dump_state)
-        printf '%s\n' $bs $fioruntime $qd $clt_bw $clt_lat $bluestore_kv_sync_lat $bluestore_kvq_lat $kvq_p99_lat $kvq_p95_lat $kvq_median_lat $kvq_min_lat | paste -sd ',' >> ${DATA_FILE}
+        printf '%s\n' $bs $fioruntime $qd $clt_bw $clt_lat $bluestore_kv_sync_lat $bluestore_kvq_lat $kv_sync_p99_lat $kv_sync_p95_lat $kv_sync_median_lat $kv_sync_min_lat $kvq_p99_lat $kvq_p95_lat $kvq_median_lat $kvq_min_lat | paste -sd ',' >> ${DATA_FILE}
     done
     #sudo bin/ceph daemon osd.0 perf reset osd
 }
 
-#for j in 1 2 3 4 5; do
-printf '%s\n' "bs" "runtime" "qdepth" "bw_mbs" "lat_s" "bluestore_kv_sync_lat" "bluestore_kvq_lat" "kvq_p99_lat" "kvq_p95_lat" "kvq_median_lat" "kvq_min_lat" |  paste -sd ',' > ${DATA_FILE}
+for j in 1 2 3 4 5; do
+printf '%s\n' "bs" "runtime" "qdepth" "bw_mbs" "lat_s" "bluestore_kv_sync_lat" "bluestore_kvq_lat" "kv_sync_p99_lat" "kv_sync_p95_lat" "kv_sync_median_lat" "kv_sync_min_lat" "kvq_p99_lat" "kvq_p95_lat" "kvq_median_lat" "kvq_min_lat" |  paste -sd ',' > ${DATA_FILE}
 for qd in {16..96..16}; do
 	#bs="$((2**i*4*1024))"
 	#iototal="$((2**i*4*1024*100000))"   #"$((2**i*40))m"
@@ -56,6 +55,7 @@ for qd in {16..96..16}; do
 	mv ./kv_sync_lat_vec.csv ./dump_kv_sync_lat_vec-${qd}.csv
 	mv ./txc_bytes_vec.csv ./dump_txc_bytes_vec-${qd}.csv
 	mv ./kvq_lat_analysis_vec.csv ./dump_kvq_lat_analysis_vec-${qd}.csv
+	mv ./kv_queue_size_vec.csv ./dump_kv_queue_size_vec-${qd}.csv
 	mv ./blocking_dur_vec.csv ./dump_blocking_dur_vec-${qd}.csv
         # it contains kvq_p99_lat, kvq_p95_lat, kvq_median_lat, kvq_min_lat, kv_sync_p99_lat, kv_sync_p95_lat, kv_sync_median_lat, kv_sync_min_lat
         # process kvq_lat.csv and kv_cync_lat.csv
@@ -88,7 +88,9 @@ for qd in {16..96..16}; do
 	#sudo rm -rf dev out
 	#sudo rm -rf ceph.conf
 done
-#python plot_codel.py
+
+#python plot-codel.py
+
 # move everything to a directory
 dn=queueing-delay-$(date +"%Y_%m_%d_%I_%M_%p")
 sudo mkdir -p ${dn} # create data if not created
@@ -96,4 +98,4 @@ sudo mv dump* ${dn}
 #sudo cp ceph.conf ${dn}
 sudo mv ${dn} ./data
 echo DONE!
-#done
+done

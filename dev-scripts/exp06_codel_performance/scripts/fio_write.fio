@@ -4,10 +4,10 @@ clientname=admin
 pool=mybench
 rbdname=image1
 rw=randwrite
-bs=4k
+bs=4096
 ;size=838860800000
 time_based=1
-runtime=10
+runtime=30
 direct = 1
 ;write_iops_log
 
