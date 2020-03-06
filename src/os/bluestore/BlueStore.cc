@@ -4157,14 +4157,14 @@ void BlueStore::dump_kvq_vector(ostream& out) {
   // dump codel related vectors
   throttle.write_csv("kv_queue_size_vec.csv", "kv_queue_size", throttle.kv_queue_size_vec);
   throttle.write_csv("blocking_dur_vec.csv", "blocking_dur", throttle.blocking_dur_vec);
-  if(throttle.kv_sync_lat_vec.size() > 10) {
-      // remove first and last 5 elements for stable results
+  /*if(throttle.kv_sync_lat_vec.size() > 10) {
+      // remove first and last 10 elements for stable results
       throttle.kvq_lat_vec = vector<double>(throttle.kvq_lat_vec.begin()+10, throttle.kvq_lat_vec.end()-10);
       throttle.kv_sync_lat_vec = vector<double>(throttle.kv_sync_lat_vec.begin()+10, throttle.kv_sync_lat_vec.end()-10);
       throttle.txc_bytes_vec = vector<uint64_t>(throttle.txc_bytes_vec.begin()+10, throttle.txc_bytes_vec.end()-10);
-  }
+  }*/
   // sort the vectors to get percentile data
-  std::sort(throttle.kvq_lat_vec.begin(), throttle.kvq_lat_vec.end());
+  /*std::sort(throttle.kvq_lat_vec.begin(), throttle.kvq_lat_vec.end());
   std::sort(throttle.kv_sync_lat_vec.begin(), throttle.kv_sync_lat_vec.end());
 
   double kvq_p99_lat = throttle.kvq_lat_vec[(int)(throttle.kvq_lat_vec.size()*0.99 - 1)];
@@ -4179,7 +4179,7 @@ void BlueStore::dump_kvq_vector(ostream& out) {
 
   vector<double> kvq_lat_analysis_vec{kvq_p99_lat, kvq_p95_lat, kvq_median_lat, kvq_min_lat, kv_sync_p99_lat, kv_sync_p95_lat, kv_sync_median_lat, kv_sync_min_lat};  
   throttle.write_csv("kvq_lat_analysis_vec.csv", "latency(nsec)", kvq_lat_analysis_vec);
-  
+  */
  out << "the vector is dumped" << "\n";
 
 }

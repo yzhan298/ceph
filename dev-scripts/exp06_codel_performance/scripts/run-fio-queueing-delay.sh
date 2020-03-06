@@ -27,12 +27,12 @@ single_dump() {
 	clt_lat=$(echo "$(jq '.jobs[0].write.lat_ns.mean' dump-fio-bench-${qdepth}) / 1000000000" | bc -l) # seconds
         bluestore_kv_sync_lat=$(jq ".bluestore.kv_sync_lat.avgtime" $dump_state)
         bluestore_kvq_lat=$(jq ".bluestore.bluestore_kvq_lat.avgtime" $dump_state)
-        printf '%s\n' $bs $fioruntime $qd $clt_bw $clt_lat $bluestore_kv_sync_lat $bluestore_kvq_lat $kv_sync_p99_lat $kv_sync_p95_lat $kv_sync_median_lat $kv_sync_min_lat $kvq_p99_lat $kvq_p95_lat $kvq_median_lat $kvq_min_lat | paste -sd ',' >> ${DATA_FILE}
+        #printf '%s\n' $bs $fioruntime $qd $clt_bw $clt_lat $bluestore_kv_sync_lat $bluestore_kvq_lat $kv_sync_p99_lat $kv_sync_p95_lat $kv_sync_median_lat $kv_sync_min_lat $kvq_p99_lat $kvq_p95_lat $kvq_median_lat $kvq_min_lat | paste -sd ',' >> ${DATA_FILE}
     done
     #sudo bin/ceph daemon osd.0 perf reset osd
 }
 
-for j in 1 2 3 4 5; do
+#for j in 1 2 3 4 5; do
 printf '%s\n' "bs" "runtime" "qdepth" "bw_mbs" "lat_s" "bluestore_kv_sync_lat" "bluestore_kvq_lat" "kv_sync_p99_lat" "kv_sync_p95_lat" "kv_sync_median_lat" "kv_sync_min_lat" "kvq_p99_lat" "kvq_p95_lat" "kvq_median_lat" "kvq_min_lat" |  paste -sd ',' > ${DATA_FILE}
 for qd in {16..96..16}; do
 	#bs="$((2**i*4*1024))"
@@ -54,20 +54,20 @@ for qd in {16..96..16}; do
 	mv ./kvq_lat_vec.csv ./dump_kvq_lat_vec-${qd}.csv
 	mv ./kv_sync_lat_vec.csv ./dump_kv_sync_lat_vec-${qd}.csv
 	mv ./txc_bytes_vec.csv ./dump_txc_bytes_vec-${qd}.csv
-	mv ./kvq_lat_analysis_vec.csv ./dump_kvq_lat_analysis_vec-${qd}.csv
+	#mv ./kvq_lat_analysis_vec.csv ./dump_kvq_lat_analysis_vec-${qd}.csv
 	mv ./kv_queue_size_vec.csv ./dump_kv_queue_size_vec-${qd}.csv
 	mv ./blocking_dur_vec.csv ./dump_blocking_dur_vec-${qd}.csv
         # it contains kvq_p99_lat, kvq_p95_lat, kvq_median_lat, kvq_min_lat, kv_sync_p99_lat, kv_sync_p95_lat, kv_sync_median_lat, kv_sync_min_lat
         # process kvq_lat.csv and kv_cync_lat.csv
-	INPUTCSV=dump_kvq_lat_analysis_vec-${qd}.csv
-        kvq_p99_lat=$(awk 'BEGIN { FS = "," } ; NR == 2{ print $1 }' < $INPUTCSV)	
-	kvq_p95_lat=$(awk 'BEGIN { FS = "," } ; NR == 3{ print $1 }' < $INPUTCSV)
-	kvq_median_lat=$(awk 'BEGIN { FS = "," } ; NR == 4{ print $1 }' < $INPUTCSV)
-	kvq_min_lat=$(awk 'BEGIN { FS = "," } ; NR == 5{ print $1 }' < $INPUTCSV)
-	kv_sync_p99_lat=$(awk 'BEGIN { FS = "," } ; NR == 6{ print $1 }' < $INPUTCSV)
-	kv_sync_p95_lat=$(awk 'BEGIN { FS = "," } ; NR == 7{ print $1 }' < $INPUTCSV)
-	kv_sync_median_lat=$(awk 'BEGIN { FS = "," } ; NR == 8{ print $1 }' < $INPUTCSV)
-	kv_sync_min_lat=$(awk 'BEGIN { FS = "," } ; NR == 9{ print $1 }' < $INPUTCSV)
+	#INPUTCSV=dump_kvq_lat_analysis_vec-${qd}.csv
+        #kvq_p99_lat=$(awk 'BEGIN { FS = "," } ; NR == 2{ print $1 }' < $INPUTCSV)	
+	#kvq_p95_lat=$(awk 'BEGIN { FS = "," } ; NR == 3{ print $1 }' < $INPUTCSV)
+	#kvq_median_lat=$(awk 'BEGIN { FS = "," } ; NR == 4{ print $1 }' < $INPUTCSV)
+	#kvq_min_lat=$(awk 'BEGIN { FS = "," } ; NR == 5{ print $1 }' < $INPUTCSV)
+	#kv_sync_p99_lat=$(awk 'BEGIN { FS = "," } ; NR == 6{ print $1 }' < $INPUTCSV)
+	#kv_sync_p95_lat=$(awk 'BEGIN { FS = "," } ; NR == 7{ print $1 }' < $INPUTCSV)
+	#kv_sync_median_lat=$(awk 'BEGIN { FS = "," } ; NR == 8{ print $1 }' < $INPUTCSV)
+	#kv_sync_min_lat=$(awk 'BEGIN { FS = "," } ; NR == 9{ print $1 }' < $INPUTCSV)
 
 	sudo bin/ceph daemon osd.0 dump opq vector
 	mv ./opq_vec.csv ./dump_opq_vec-${qd}.csv
@@ -98,4 +98,4 @@ sudo mv dump* ${dn}
 #sudo cp ceph.conf ${dn}
 sudo mv ${dn} ./data
 echo DONE!
-done
+#done
