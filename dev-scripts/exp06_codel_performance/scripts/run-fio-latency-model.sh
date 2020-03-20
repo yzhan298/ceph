@@ -6,7 +6,7 @@
 # run rbd bench and collect result
 bs="4096" #block size or object size (Bytes)
 rw="randwrite"
-fioruntime=30
+fioruntime=120
 iototal="400m"
 qd=48
 
@@ -32,8 +32,8 @@ single_dump() {
 
 #for j in 1 2 3 4 5; do
 printf '%s\n' "bs" "iototal" "qdepth" "bw_mbs" "lat_s" "bluestore_kv_sync_lat" "bluestore_kvq_lat" "kv_sync_p99_lat" "kv_sync_p95_lat" "kv_sync_median_lat" "kv_sync_min_lat" "kvq_p99_lat" "kvq_p95_lat" "kvq_median_lat" "kvq_min_lat" |  paste -sd ',' > ${DATA_FILE}
-for i in {0..10}; do
-#for i in 11; do
+#for i in {0..10}; do
+for i in 0; do
 #for qd in 32; do
         #./run.sh $qd $bt
         #sudo MON=1 OSD=1 MDS=0 ../src/vstart.sh -b -k -l --without-dashboard
@@ -43,7 +43,8 @@ for i in {0..10}; do
 	iototal="$((2**i*4*1024*10000))"   #"$((2**i*40))m"
 	./start_ceph.sh
 	sudo bin/ceph osd pool create mybench 128 128
-	sudo bin/rbd create --size=40G mybench/image1
+	sudo bin/rbd create --size=50G mybench/image1
+	sleep 15
 
 	sed -i "s/iodepth=.*/iodepth=${qd}/g" fio_write.fio
 	sed -i "s/bs=.*/bs=${bs}/g" fio_write.fio

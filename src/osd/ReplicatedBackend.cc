@@ -1111,7 +1111,7 @@ void ReplicatedBackend::do_repop(OpRequestRef op)
     parent->bless_context(
       new C_OSD_RepModifyCommit(this, rm)));
   vector<ObjectStore::Transaction> tls;
-  tls.reserve(2);
+  tls.reserve(2); // reserve two spots for transactions
   tls.push_back(std::move(rm->localt));
   tls.push_back(std::move(rm->opt));
   parent->queue_transactions(tls, op);

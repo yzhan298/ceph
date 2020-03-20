@@ -2,8 +2,8 @@
 
 sudo bin/ceph osd pool delete mybench mybench --yes-i-really-really-mean-it
 sudo ../src/stop.sh
-sudo bin/init-ceph --verbose stop 
-sleep 5
+#sudo bin/init-ceph --verbose stop 
+#sleep 5
 sudo rm -rf dev out
 #sudo rm -rf ceph.conf
 #sudo pkill ceph

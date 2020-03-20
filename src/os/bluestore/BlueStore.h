@@ -1748,7 +1748,7 @@ public:
     // constants
     utime_t target_queue_delay {0, 13000000}; // (time_t timestamp, int nanoseconds):the target queue delay (eg: 0.011s = {0, 11000000})
     //std::chrono::nanoseconds init_blocking_dur{100000};
-    size_t kv_queue_upper_bound_size = 20; // upper bound size of batch(eg: allowing max 5 txcs to be committed in BlueStore for a batch)
+    size_t kv_queue_upper_bound_size = 1; // upper bound size of batch(eg: allowing max 5 txcs to be committed in BlueStore for a batch)
     std::chrono::nanoseconds const_lat{100000};
     std::condition_variable t_cond;
     std::mutex t_mtx;

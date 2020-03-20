@@ -796,7 +796,7 @@ int RocksDBStore::submit_common(rocksdb::WriteOptions& woptions, KeyValueDB::Tra
   RocksWBHandler bat_txc;
   _t->bat.Iterate(&bat_txc);
   *_dout << " Rocksdb transaction: " << bat_txc.seen << dendl;
-  //derr << "### RocksDB batch size="<< _t->bat.Count()<<dendl; 
+  //dout(0) <<__func__<< "### RocksDB batch size="<< _t->bat.Count()<<dendl; 
   rocksdb::Status s = db->Write(woptions, &_t->bat);
   if (!s.ok()) {
     RocksWBHandler rocks_txc;

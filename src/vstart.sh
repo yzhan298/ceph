@@ -676,11 +676,13 @@ EOF
         bluestore block wal path = $CEPH_DEV_DIR/osd\$id/block.wal.file
         bluestore block wal size = 1048576000
         bluestore block wal create = true
+
+	;bluestore rocksdb options = compression=kNoCompression,max_write_buffer_number=8,min_write_buffer_number_to_merge=4,recycle_log_file_num=4,write_buffer_size=1073741824,writable_file_max_buffer_size=0,compaction_readahead_size=8388608,max_background_compactions=2
 	
 	osd_op_num_shards = 1
 	enable_throttle = false
-        enable_codel = true
-	enable_batch_bound = false
+        enable_codel = false
+	enable_batch_bound = true
 	bluestore_throttle_bytes = 100000000
 	bluestore_throttle_deferred_bytes = 100000000
 	bluestore_throttle_cost_per_io = 0

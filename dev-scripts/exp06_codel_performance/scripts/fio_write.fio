@@ -7,9 +7,9 @@ rw=randwrite
 bs=4096
 ;size=83886080000
 time_based=1
-runtime=30
+runtime=10
 direct = 1
 ;write_iops_log
 
 [fio-write]
-iodepth=96
+iodepth=128
