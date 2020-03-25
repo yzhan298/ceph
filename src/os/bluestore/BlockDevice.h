@@ -132,6 +132,7 @@ class BlockDevice {
 public:
   CephContext* cct;
   typedef void (*aio_callback_t)(void *handle, void *aio);
+  vector<double> aio_lat_vec; // this vector is to store the aio latency
 private:
   ceph::mutex ioc_reap_lock = ceph::make_mutex("BlockDevice::ioc_reap_lock");
   std::vector<IOContext*> ioc_reap_queue;

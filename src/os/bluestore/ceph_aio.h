@@ -17,6 +17,7 @@
 
 #include "include/buffer.h"
 #include "include/types.h"
+#include "include/utime.h"
 
 struct aio_t {
 #if defined(HAVE_LIBAIO)
@@ -35,10 +36,16 @@ struct aio_t {
   uint64_t offset, length;
   long rval;
   bufferlist bl;  ///< write payload (so that it remains stable for duration)
+  //std::chrono::time_point<mono_clock> aio_submit_timestamp;
+  //std::chrono::time_point<mono_clock> aio_finish_timestamp;
+  //std::chrono::time_point<mono_clock, std::chrono::nanoseconds> aio_submit_timestamp;
+  //std::chrono::time_point<mono_clock, std::chrono::nanoseconds> aio_finish_timestamp;
+  //utime_t aio_submit_timestamp;
+  //utime_t aio_finish_timestamp;
 
   boost::intrusive::list_member_hook<> queue_item;
 
-  aio_t(void *p, int f) : priv(p), fd(f), offset(0), length(0), rval(-1000) {
+  aio_t(void *p, int f) : priv(p), fd(f), offset(0), length(0), rval(-1000){
   }
 
   void pwritev(uint64_t _offset, uint64_t len) {

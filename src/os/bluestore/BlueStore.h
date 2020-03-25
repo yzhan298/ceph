@@ -1554,6 +1554,8 @@ public:
 
     utime_t time_created; // time when first created (enters BlueStore)
     utime_t time_finished; // time when finished
+    utime_t time_aio_submit; // time when aio is submitted
+    utime_t time_aio_done; // time when aio is done(calling state machine again)
     utime_t time_kvq_in; // time when txc is pushed into kv_queue
     utime_t time_kvq_out; // time when txc is swapped out from kv_queue
     utime_t time_measure_end; // end time for codel measurement 
@@ -1611,6 +1613,7 @@ public:
   class BlueStoreThrottle {
 #if defined(WITH_LTTNG)
     const std::chrono::time_point<mono_clock> time_base = mono_clock::now();
+    CephContext *cct;
 
     // Time of last chosen io (microseconds)
     std::atomic<uint64_t> previous_emitted_tp_time_mono_mcs = {0};
@@ -1672,7 +1675,8 @@ public:
   public:
     BlueStoreThrottle(CephContext *cct) :
       throttle_bytes(cct, "bluestore_throttle_bytes", 0),
-      throttle_deferred_bytes(cct, "bluestore_throttle_deferred_bytes", 0)
+      throttle_deferred_bytes(cct, "bluestore_throttle_deferred_bytes", 0),
+      cct(cct)
     {
       reset_throttle(cct->_conf);
     }
@@ -1746,9 +1750,9 @@ private:
     uint64_t bound_count = 0; // used to control batch size(no-passing the upper bound)
 public:
     // constants
-    utime_t target_queue_delay {0, 13000000}; // (time_t timestamp, int nanoseconds):the target queue delay (eg: 0.011s = {0, 11000000})
+    utime_t target_queue_delay {0, 1100000}; // (time_t timestamp, int nanoseconds):the target queue delay (eg: 0.011s = {0, 11000000})
     //std::chrono::nanoseconds init_blocking_dur{100000};
-    size_t kv_queue_upper_bound_size = 1; // upper bound size of batch(eg: allowing max 5 txcs to be committed in BlueStore for a batch)
+    size_t kv_queue_upper_bound_size = cct->_conf->kv_queue_upper_bound_size; // upper bound size of batch(eg: allowing max 5 txcs to be committed in BlueStore for a batch)
     std::chrono::nanoseconds const_lat{100000};
     std::condition_variable t_cond;
     std::mutex t_mtx;
@@ -1757,6 +1761,9 @@ public:
     // these vectors are for latency model in BlueStore
     vector<double> kv_sync_lat_vec; // flush + kv_commit
     vector<double> kvq_lat_vec; // kv_queue_lat + kv_sync_lat
+    vector<double> aio_lat_vec; // aio_latency
+    //kvq+aio lat = total time spent in BlueStore for simple write 
+    vector<double> total_bluestore_simple_write_lat_vec;
     vector<uint64_t> txc_bytes_vec; // store txc->bytes
 
     // these vectors are for CoDel experiments

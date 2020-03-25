@@ -108,6 +108,9 @@ class KernelDevice : public BlockDevice {
   void _detect_vdo();
   int choose_fd(bool buffered, int write_hint) const;
 
+//public:
+//  vector<double> aio_lat_vec; // this vector is to store the aio latency
+
 public:
   KernelDevice(CephContext* cct, aio_callback_t cb, void *cbpriv, aio_callback_t d_cb, void *d_cbpriv);
 

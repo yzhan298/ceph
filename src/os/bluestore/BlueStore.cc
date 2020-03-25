@@ -4694,12 +4694,16 @@ private:
 void BlueStore::dump_kvq_vector(ostream &out)
 {
   // dump the original vectors of kvq_lat and kv_sync_lat
-  throttle.write_csv("kvq_lat_vec.csv", "kvq_lat", throttle.kvq_lat_vec);
+  throttle.write_csv("kvq_lat_vec.csv", "kvq_lat", throttle.kvq_lat_vec); // from kv_q enqueue to commit done
   throttle.write_csv("kv_sync_lat_vec.csv", "kv_sync_lat", throttle.kv_sync_lat_vec);
   throttle.write_csv("txc_bytes_vec.csv", "txc_size", throttle.txc_bytes_vec);
+  // dump KernelDevice aio latency
+  //throttle.write_csv("aio_lat_vec.csv", "aio_lat", throttle.aio_lat_vec);
+  // dump total latency in BlueStore(aio+kv)
+  throttle.write_csv("total_bluestore_simple_write_lat_vec.csv", "total_bluestore_lat", throttle.total_bluestore_simple_write_lat_vec);
   // dump codel related vectors
-  throttle.write_csv("kv_queue_size_vec.csv", "kv_queue_size", throttle.kv_queue_size_vec);
-  throttle.write_csv("blocking_dur_vec.csv", "blocking_dur", throttle.blocking_dur_vec);
+  //throttle.write_csv("kv_queue_size_vec.csv", "kv_queue_size", throttle.kv_queue_size_vec);
+  //throttle.write_csv("blocking_dur_vec.csv", "blocking_dur", throttle.blocking_dur_vec);
   /*if(throttle.kv_sync_lat_vec.size() > 10) {
       // remove first and last 10 elements for stable results
       throttle.kvq_lat_vec = vector<double>(throttle.kvq_lat_vec.begin()+10, throttle.kvq_lat_vec.end()-10);
@@ -12384,11 +12388,13 @@ void BlueStore::_txc_state_proc(TransContext *txc)
     {
     case TransContext::STATE_PREPARE:
       throttle.log_state_latency(*txc, logger, l_bluestore_state_prepare_lat);
-      txc->time_created = ceph_clock_now();
+      //txc->time_created = ceph_clock_now();
+      txc->time_aio_submit = ceph_clock_now();
       if (txc->ioc.has_pending_aios())
       {
         txc->state = TransContext::STATE_AIO_WAIT;
         txc->had_ios = true;
+        txc->time_aio_submit = ceph_clock_now(); // 
         _txc_aio_submit(txc); // submit aio to KernelDevice
         return;
       }
@@ -12396,6 +12402,8 @@ void BlueStore::_txc_state_proc(TransContext *txc)
 
     case TransContext::STATE_AIO_WAIT:
     {
+      txc->time_aio_done = ceph_clock_now();
+      //dout(0)<<"### aio_delay="<<txc->time_aio_done - txc->time_aio_submit <<", txc->time_aio_done="<<txc->time_aio_done<<dendl;
       utime_t lat = throttle.log_state_latency(
           *txc, logger, l_bluestore_state_aio_wait_lat);
       if (lat >= cct->_conf->bluestore_log_op_age)
@@ -12405,12 +12413,14 @@ void BlueStore::_txc_state_proc(TransContext *txc)
                  << dendl;
       }
     }
-
       _txc_finish_io(txc); // may trigger blocked txc's too
       return;
 
     case TransContext::STATE_IO_DONE:
       ceph_assert(ceph_mutex_is_locked(txc->osr->qlock)); // see _txc_finish_io
+      //txc->time_aio_done = ceph_clock_now();
+      //dout(0)<<"### aio_delay="<<txc->time_aio_done - txc->time_aio_submit <<", txc->time_aio_done="<<txc->time_aio_done<<dendl;
+      //throttle.aio_lat_vec.push_back((double)(txc->time_aio_done - txc->time_aio_submit).to_nsec() / 1000000000);
       if (txc->had_ios)
       {
         ++txc->osr->txc_with_unstable_io;
@@ -13138,6 +13148,7 @@ void BlueStore::_kv_sync_thread()
       //utime_t avg_kvq_lat_sum;
       //utime_t avg_kvq_lat;
       throttle.kv_queue_size_vec.push_back(kv_queue.size());
+      //dout(0)<<"### batch size="<<throttle.kv_queue_upper_bound_size<<", conf->batch size="<<cct->_conf->kv_queue_upper_bound_size<<dendl;
       if (cct->_conf->enable_batch_bound && kv_queue.size() > throttle.kv_queue_upper_bound_size && kv_queue_unsubmitted.size() > throttle.kv_queue_upper_bound_size)
       {
         kv_committing.insert(kv_committing.begin(),
@@ -13360,9 +13371,15 @@ void BlueStore::_kv_sync_thread()
         {
           throttle.count_inc();
           txc->time_measure_end = codel_after_commit;
-          auto cur_queue_delay = txc->time_measure_end - txc->time_kvq_in;
+          auto cur_queue_delay = txc->time_measure_end - txc->time_kvq_in; // from queued in kv_q to finish
+          auto txc_aio_delay = txc->time_aio_done - txc->time_aio_submit; // aio delay for this txc
+          //dout(0)<<"### kv_delay="<<cur_queue_delay<<dendl;
+          // total_lat = aio_lat + kvq+lat
+          auto total_bluestore_simple_write_lat = cur_queue_delay + txc_aio_delay;
+          //dout(0)<<"### total_bluestore_simple_write_lat="<<total_bluestore_simple_write_lat<<dendl;
           logger->tinc(l_bluestore_kvq_lat, cur_queue_delay); // kv queueing latency (from kv_qeueue enqueue to commit finish)
           throttle.kvq_lat_vec.push_back((double)cur_queue_delay.to_nsec() / 1000000000);
+          throttle.total_bluestore_simple_write_lat_vec.push_back((double)total_bluestore_simple_write_lat.to_nsec() / 1000000000);
           throttle.txc_bytes_vec.push_back(txc->bytes);
           //dout(0)<<"### cur_queue_delay.to_nsec()="<<cur_queue_delay.to_nsec()<<", vec_size="<<throttle.kvq_lat_vec.size()<<dendl;
           if (throttle.count_cur() != kv_committing.size() && kv_committing.size() > 1)
@@ -13887,9 +13904,11 @@ int BlueStore::queue_transactions(
 
   // prepare, create txc for transaction, add txc to oncommit, and return txc
   // include setattr, get_onode, process collections, etc.
+  // txc state is STATE_PREPARE, and keeps order in osr 
   TransContext *txc = _txc_create(static_cast<Collection *>(ch.get()), osr,
                                   &on_commit);
 
+  // convert OSD-layer transactions to BlueStore Transactions
   for (vector<Transaction>::iterator p = tls.begin(); p != tls.end(); ++p)
   {
     txc->bytes += (*p).get_num_bytes(); // get total size for this txc
@@ -13974,6 +13993,7 @@ int BlueStore::queue_transactions(
   //txc->time_created = bs_start;
   // execute (start)
   //dout(0)<<"txc->state="<<txc->state<<dendl;
+  // state machine
   _txc_state_proc(txc);
   //dout(10) << "###state2="<<txc->state<<dendl; // should be 3, STATE_KV_QUEUED
   auto bst4 = ceph_clock_now(); // bluestore latency model time stamp 4: right after _txc_state_proc(txc) for 1st time
@@ -13987,10 +14007,12 @@ int BlueStore::queue_transactions(
   {
     if (c->commit_queue)
     {
+      //dout(0)<<"### no finisher"<<dendl; // called
       c->commit_queue->queue(on_applied);
     }
     else
     {
+      //dout(0)<<"### finisher"<<dendl;
       finisher.queue(on_applied); // process in finisher thread
     }
   }

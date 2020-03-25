@@ -3105,8 +3105,8 @@ void OSD::write_csv(std::string filename, std::string colname, std::vector<T>& v
 
 void OSD::dump_opq_vector() {
   //sdata->pqueue->get_size_slow(), get_io_queue(), opqueue 
-  write_csv("opq_vec.csv", "opq_vec", opq_vec); 
-   
+  write_csv("opq_vec.csv", "opq_vec", opq_vec); // op_queue size
+  //write_csv("opq_lat_vec.csv", "opq_lat_vec", opq_lat_vec); // op_queue latency
 }
 
 class TestOpsSocketHook : public AdminSocketHook {
@@ -9561,6 +9561,7 @@ void OSD::enqueue_op(spg_t pg, OpRequestRef&& op, epoch_t epoch)
   op->osd_trace.keyval("cost", cost);
   op->mark_queued_for_pg();
   logger->tinc(l_osd_op_before_queue_op_lat, latency);
+  op->set_enqueued_time(ceph_clock_now());
   op_shardedwq.queue(
     OpQueueItem(
       unique_ptr<OpQueueItem::OpQueueable>(new PGOpItem(pg, std::move(op))),
@@ -9609,7 +9610,11 @@ void OSD::dequeue_op(
   utime_t now = ceph_clock_now();
   op->set_dequeued_time(now);
 
+  //auto opq_lat = op->get_dequeued_time() - op->get_enqueued_time();
+  //opq_lat_vec.push_back(opq_lat);
+  
   utime_t latency = now - m->get_recv_stamp();
+  //opq_lat_vec.push_back(latency); // NOTE this line will cause memory violation
   dout(10) << "dequeue_op " << op << " prio " << m->get_priority()
 	   << " cost " << m->get_cost()
 	   << " latency " << latency

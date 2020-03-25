@@ -683,6 +683,7 @@ EOF
 	enable_throttle = false
         enable_codel = false
 	enable_batch_bound = true
+	kv_queue_upper_bound_size = 30
 	bluestore_throttle_bytes = 100000000
 	bluestore_throttle_deferred_bytes = 100000000
 	bluestore_throttle_cost_per_io = 0

@@ -562,14 +562,31 @@ void KernelDevice::_aio_thread()
   int inject_crash_count = 0;
   while (!aio_stop)
   {
-    dout(40) << __func__ << " polling" << dendl;
+    //dout(0) << __func__ << " polling" << dendl;
     int max = cct->_conf->bdev_aio_reap_max; // by default, 16
     aio_t *aio[max];
-    auto tstart = ceph_clock_now(); // time stamp: right before get_next_completed
-    dout(1) << " ###1 _aio_thread starting time=" << tstart << dendl;
+    //auto tstart = ceph_clock_now(); // time stamp: right before get_next_completed
+    //auto tstart_mc = mono_clock::now();
+    //dout(0) << " ###1 _aio_thread starting time=" << tstart << dendl;
     int r = aio_queue.get_next_completed(cct->_conf->bdev_aio_poll_ms, aio, max); // 250ms by default
-    dout(1) << " ###2 _aio_thread polling duration=" << ceph_clock_now() - tstart << dendl;
-    dout(1) << " ###2 read number of events=" << r << " (=completed aios)" << dendl;
+    //auto aio_finish_time = mono_clock::now();
+    //auto tstart2 = ceph_clock_now();
+    //dout(0)<<"###2 get_next_dur="<<tstart2-tstart<<", r="<<r<<dendl;
+    //dout(0)<<"###2 get_next_dur_mc="<<aio_finish_time-tstart_mc<<", r="<<r<<dendl;
+    /*for (int i = 0; i < r; ++i){
+      dout(30)<<" finish="<<aio_finish_time<<", submit="<<aio[i]->aio_submit_timestamp
+      <<", rval="<<aio[i]->rval<<", fd="<<aio[i]->fd <<", priv="<<aio[i]->priv
+      <<", offset="<<aio[i]->offset<<", length="<<aio[i]->length<<dendl;
+      
+      //aio[i]->aio_finish_timestamp = aio_finish_time;
+      //auto aio_delay = aio[i]->aio_finish_timestamp - aio[i]->aio_submit_timestamp;
+      //dout(0)<<" lat="<<aio_delay<<dendl;
+      //aio_lat_vec.push_back((double)aio_delay.count()); /// 1000000000);
+      //aio_lat_vec.push_back((double)aio_delay.to_nsec() / 1000000000);
+    }*/
+
+    //dout(1) << " ###2 _aio_thread polling duration=" << ceph_clock_now() - tstart << dendl;
+    //dout(1) << " ###2 read number of events=" << r << " (=completed aios)" << dendl;
     if (r < 0)
     {
       derr << __func__ << " got " << cpp_strerror(r) << dendl;
@@ -662,8 +679,9 @@ void KernelDevice::_aio_thread()
       }
     }
     auto tend = ceph_clock_now();
-    auto aio_lat = tend - tstart;
-    dout(1) << "### latency for aio=" << aio_lat << dendl;
+    //auto process_aio_lat = tend - tstart2;
+    //aio_lat_vec.push_back(aio_lat);
+    //dout(0) << "###3 aio_thread_delay=" << process_aio_lat << dendl;
     if (cct->_conf->bdev_debug_aio)
     {
       utime_t now = ceph_clock_now();
@@ -880,11 +898,17 @@ void KernelDevice::aio_submit(IOContext *ioc)
 
   void *priv = static_cast<void *>(ioc);
   int r, retries = 0;
-  auto kdt1 = ceph_clock_now(); // kernel device time stamp 1: right before submit_batch, which is handled by aio_thread
+  //auto kdt1 = ceph_clock_now(); // kernel device time stamp 1: right before submit_batch, which is handled by aio_thread
+  //auto aio_submit_time = mono_clock::now();
+  //auto aio_submit_time = ceph_clock_now();
+  for(auto aio : ioc->running_aios){
+    //aio.aio_submit_timestamp = aio_submit_time;
+    //dout(0)<<"### aio_submit_time="<<aio_submit_time<<", rval="<<aio.rval<<", fd="<<aio.fd<<dendl;
+  }
   r = aio_queue.submit_batch(ioc->running_aios.begin(), e,
                              pending, priv, &retries);
-  auto kdt2 = ceph_clock_now(); // kernel device time stamp 2: right after submit_batch
-  dout(1) << __func__ << " ### delay of submit_batch = " << kdt2 - kdt1 << dendl;
+  //auto kdt2 = ceph_clock_now(); // kernel device time stamp 2: right after submit_batch
+  //dout(0) << __func__ << " ### delay of submit_batch = " << kdt2 - kdt1 << dendl;
   if (retries)
     derr << __func__ << " retries " << retries << dendl;
   if (r < 0)

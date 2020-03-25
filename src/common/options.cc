@@ -4783,6 +4783,10 @@ std::vector<Option> get_global_options() {
     .set_default(false)
     .set_description("enable bluestore committing batch upperbound"),
 
+    Option("kv_queue_upper_bound_size", Option::TYPE_SIZE, Option::LEVEL_ADVANCED)
+    .set_default(10)
+    .set_description("set bluestore committing batch upperbound"),
+
     Option("enable_throttle", Option::TYPE_BOOL, Option::LEVEL_ADVANCED)
     .set_default(true)
     .set_description("enable bluestore throttler(token bucket system)"),

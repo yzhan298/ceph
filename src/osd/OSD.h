@@ -1134,12 +1134,14 @@ public:
   void update_log_config();
   void check_config();
 
-  // codel: check op_queue size
+  // codel: check op_queue size and delay
   vector<unsigned> opq_vec;
+  vector<double> opq_lat_vec;
   template<class T>
   void write_csv(std::string filename, std::string colname, std::vector<T>& vec);
   void dump_opq_vector();
   
+
 protected:
 
   const double OSD_TICK_INTERVAL = { 1.0 };
