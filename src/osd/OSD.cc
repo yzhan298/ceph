@@ -9566,7 +9566,9 @@ void OSD::enqueue_op(spg_t pg, OpRequestRef&& op, epoch_t epoch)
     OpQueueItem(
       unique_ptr<OpQueueItem::OpQueueable>(new PGOpItem(pg, std::move(op))),
       cost, priority, stamp, owner, epoch));
-  opq_vec.push_back(op_shardedwq.get_size_of_all_shards());
+  auto opq_size = op_shardedwq.get_size_of_all_shards();
+  opq_vec.push_back(opq_size);
+  logger->set(l_osd_op_queue_size, opq_size); 
 }
 
 void OSD::enqueue_peering_evt(spg_t pgid, PGPeeringEventRef evt)
@@ -9609,9 +9611,10 @@ void OSD::dequeue_op(
 
   utime_t now = ceph_clock_now();
   op->set_dequeued_time(now);
-
-  //auto opq_lat = op->get_dequeued_time() - op->get_enqueued_time();
-  //opq_lat_vec.push_back(opq_lat);
+  auto op_queue_time = op->dequeued_time - op->enqueued_time;
+  dout(30)<<" op_queue duration="<<op_queue_time<<dendl;
+  logger->set(l_osd_op_queueing_time, op_queue_time); 
+  //opq_lat_vec.push_back(op_queue_time);
   
   utime_t latency = now - m->get_recv_stamp();
   //opq_lat_vec.push_back(latency); // NOTE this line will cause memory violation
@@ -10608,10 +10611,10 @@ void OSD::ShardedOpWQ::_process(uint32_t thread_index, heartbeat_handle_d *hb)
     return;
   }
   
-  // get the current # of requests from op_queue
-  osd->logger->set(l_osd_op_queue_size, sdata->pqueue->get_size_slow()); 
-  //dout(0) << __func__ << "### op_queue_size=" << sdata->pqueue->get_size_slow() << dendl;
-
+  // get the current # of requests from this op_queue
+  //osd->logger->set(l_osd_op_queue_size, sdata->pqueue->get_size_slow()); 
+  dout(30) << __func__ << "### op_queue_size=" << sdata->pqueue->get_size_slow() << dendl;
+  // opq_vec
   // dequeue one request from priority queue(op_queue)
   OpQueueItem item = sdata->pqueue->dequeue();
 

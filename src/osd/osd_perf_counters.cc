@@ -125,6 +125,8 @@ PerfCounters *build_osd_logger(CephContext *cct) {
     "Latency of IO before calling dequeue_op(already dequeued and get PG lock)"); // client io before dequeue_op latency
 
   osd_plb.add_u64_counter(l_osd_op_queue_size, "op_queue_size", "number of requests(all clients) in shardedopwq");
+  osd_plb.add_time_avg(l_osd_op_queueing_time, "osd_op_queueing_time",
+    "average queueing time for an op in sharded_opq");
 
   osd_plb.add_u64_counter(
     l_osd_sop, "subop", "Suboperations");

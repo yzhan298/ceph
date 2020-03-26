@@ -680,19 +680,20 @@ EOF
 	;bluestore rocksdb options = compression=kNoCompression,max_write_buffer_number=8,min_write_buffer_number_to_merge=4,recycle_log_file_num=4,write_buffer_size=1073741824,writable_file_max_buffer_size=0,compaction_readahead_size=8388608,max_background_compactions=2
 	
 	osd_op_num_shards = 1
+	osd_op_num_threads_per_shard = 2
 	enable_throttle = false
         enable_codel = false
-	enable_batch_bound = true
+	enable_batch_bound = false
 	kv_queue_upper_bound_size = 30
 	bluestore_throttle_bytes = 100000000
 	bluestore_throttle_deferred_bytes = 100000000
 	bluestore_throttle_cost_per_io = 0
 	bluestore_throttle_cost_per_io_hdd = 100000
 	bluestore_throttle_cost_per_io_ssd = 100000
-	bdev_block_size = 4096
+	bdev_block_size = 0
 	bluestore_min_alloc_size = 0
 	bluestore_min_alloc_size_hdd = 65536
-	bluestore_min_alloc_size_ssd = 16384
+	bluestore_min_alloc_size_ssd =  16384
 	bluestore_max_alloc_size = 0
 	bluestore_prefer_deferred_size = 0
 	bluestore_prefer_deferred_size_hdd = 0

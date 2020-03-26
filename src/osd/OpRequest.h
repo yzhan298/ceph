@@ -85,8 +85,7 @@ private:
   entity_inst_t req_src_inst;
   uint8_t hit_flag_points;
   uint8_t latest_flag_point;
-  utime_t enqueued_time;
-  utime_t dequeued_time;
+  
   static const uint8_t flag_queued_for_pg=1 << 0;
   static const uint8_t flag_reached_pg =  1 << 1;
   static const uint8_t flag_delayed =     1 << 2;
@@ -107,7 +106,9 @@ public:
   ~OpRequest() override {
     request->put();
   }
-
+  utime_t enqueued_time; // sharded_opqueue enqueue time
+  utime_t dequeued_time; // sharded_opqueue dequeue time
+  utime_t leave_osd_time; // time of laving osd layer
   bool check_send_map = true; ///< true until we check if sender needs a map
   epoch_t sent_epoch = 0;     ///< client's map epoch
   epoch_t min_epoch = 0;      ///< min epoch needed to handle this msg

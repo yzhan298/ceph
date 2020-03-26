@@ -73,7 +73,8 @@ enum {
   l_bluestore_kv_sync_lat,
   l_bluestore_kv_final_lat,
   l_bluestore_service_lat, // from state KV_PREPARED to KV_FINISHED(total time for a txc in BlueStore)
-  l_bluestore_kvq_lat, // the average time for a txc in kv_queue
+  l_bluestore_kvq_lat, // the average time from queued in kv_queue till commit finished
+  l_bluestore_aio_lat,
   l_bluestore_state_prepare_lat,
   l_bluestore_state_aio_wait_lat,
   l_bluestore_state_io_done_lat,
@@ -1558,7 +1559,8 @@ public:
     utime_t time_aio_done; // time when aio is done(calling state machine again)
     utime_t time_kvq_in; // time when txc is pushed into kv_queue
     utime_t time_kvq_out; // time when txc is swapped out from kv_queue
-    utime_t time_measure_end; // end time for codel measurement 
+    utime_t time_measure_end; // end time for codel measurement
+    utime_t aio_latency; // store the aio latency 
     //std::chrono::time_point<mono_clock> time_kvq_in1;
     //std::chrono::time_point<mono_clock> time_kvq_out1; 
     //std::chrono::time_point<mono_clock> time_commit_done1;

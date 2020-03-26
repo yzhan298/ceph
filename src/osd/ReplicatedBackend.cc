@@ -460,7 +460,7 @@ void ReplicatedBackend::submit_transaction(
   parent->apply_stats(
     soid,
     delta_stats);
-
+  //dout(0)<<"###1 called"<<dendl;
   vector<pg_log_entry_t> log_entries(_log_entries);
   ObjectStore::Transaction op_t;
   PGTransactionUPtr t(std::move(_t));
@@ -523,6 +523,10 @@ void ReplicatedBackend::submit_transaction(
   vector<ObjectStore::Transaction> tls;
   tls.push_back(std::move(op_t));
 
+  orig_op->leave_osd_time = ceph_clock_now();
+  auto op_in_osd_time = orig_op->leave_osd_time-orig_op->enqueued_time;
+  //dout(0)<<"###2 in osd duration="<<op_in_osd_time<<dendl;
+  //osd->logger->set(l_op_in_osd_time, op_in_osd_time); 
   parent->queue_transactions(tls, op.op);
   if (at_version != eversion_t()) {
     parent->op_applied(at_version);
@@ -1025,7 +1029,6 @@ void ReplicatedBackend::do_repop(OpRequestRef op)
   auto m = op->get_req<MOSDRepOp>();
   int msg_type = m->get_type();
   ceph_assert(MSG_OSD_REPOP == msg_type);
-
   const hobject_t& soid = m->poid;
 
   dout(10) << __func__ << " " << soid

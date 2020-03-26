@@ -565,10 +565,11 @@ void KernelDevice::_aio_thread()
     //dout(0) << __func__ << " polling" << dendl;
     int max = cct->_conf->bdev_aio_reap_max; // by default, 16
     aio_t *aio[max];
-    //auto tstart = ceph_clock_now(); // time stamp: right before get_next_completed
+    auto tstart = ceph_clock_now(); // time stamp: right before get_next_completed
     //auto tstart_mc = mono_clock::now();
     //dout(0) << " ###1 _aio_thread starting time=" << tstart << dendl;
     int r = aio_queue.get_next_completed(cct->_conf->bdev_aio_poll_ms, aio, max); // 250ms by default
+    //dout(0)<<"### aio_finish_time="<<mono_clock::now()<<dendl;
     //auto aio_finish_time = mono_clock::now();
     //auto tstart2 = ceph_clock_now();
     //dout(0)<<"###2 get_next_dur="<<tstart2-tstart<<", r="<<r<<dendl;
@@ -585,8 +586,8 @@ void KernelDevice::_aio_thread()
       //aio_lat_vec.push_back((double)aio_delay.to_nsec() / 1000000000);
     }*/
 
-    //dout(1) << " ###2 _aio_thread polling duration=" << ceph_clock_now() - tstart << dendl;
-    //dout(1) << " ###2 read number of events=" << r << " (=completed aios)" << dendl;
+    dout(1) << " ###1 _aio_thread polling duration=" << ceph_clock_now() - tstart << dendl;
+    dout(1) << " ###2 read number of events=" << r << " (=completed aios)" << dendl;
     if (r < 0)
     {
       derr << __func__ << " got " << cpp_strerror(r) << dendl;
@@ -678,10 +679,8 @@ void KernelDevice::_aio_thread()
         }
       }
     }
-    auto tend = ceph_clock_now();
-    //auto process_aio_lat = tend - tstart2;
-    //aio_lat_vec.push_back(aio_lat);
-    //dout(0) << "###3 aio_thread_delay=" << process_aio_lat << dendl;
+    //auto process_aio_lat = ceph_clock_now() - tstart2;
+    //dout(0) << "### aio_thread_delay=" << process_aio_lat << dendl;
     if (cct->_conf->bdev_debug_aio)
     {
       utime_t now = ceph_clock_now();
@@ -903,7 +902,7 @@ void KernelDevice::aio_submit(IOContext *ioc)
   //auto aio_submit_time = ceph_clock_now();
   for(auto aio : ioc->running_aios){
     //aio.aio_submit_timestamp = aio_submit_time;
-    //dout(0)<<"### aio_submit_time="<<aio_submit_time<<", rval="<<aio.rval<<", fd="<<aio.fd<<dendl;
+    //dout(0)<<"### aio_submit_time="<<mono_clock::now()<<", rval="<<aio.rval<<", fd="<<aio.fd<<dendl;
   }
   r = aio_queue.submit_batch(ioc->running_aios.begin(), e,
                              pending, priv, &retries);

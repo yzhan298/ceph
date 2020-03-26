@@ -4702,7 +4702,7 @@ void BlueStore::dump_kvq_vector(ostream &out)
   // dump total latency in BlueStore(aio+kv)
   throttle.write_csv("total_bluestore_simple_write_lat_vec.csv", "total_bluestore_lat", throttle.total_bluestore_simple_write_lat_vec);
   // dump codel related vectors
-  //throttle.write_csv("kv_queue_size_vec.csv", "kv_queue_size", throttle.kv_queue_size_vec);
+  throttle.write_csv("kv_queue_size_vec.csv", "kv_queue_size", throttle.kv_queue_size_vec);
   //throttle.write_csv("blocking_dur_vec.csv", "blocking_dur", throttle.blocking_dur_vec);
   /*if(throttle.kv_sync_lat_vec.size() > 10) {
       // remove first and last 10 elements for stable results
@@ -5167,7 +5167,9 @@ void BlueStore::_init_logger()
   b.add_time_avg(l_bluestore_service_lat, "bluestore_service_lat",
                  "avg time from state STATE_PREPARED to STATE_DONE(total time for a txc in BlueStore. Include simple write and deferred write.)");
   b.add_time_avg(l_bluestore_kvq_lat, "bluestore_kvq_lat",
-                 "the average time for a txc in kv_queue");
+                 "the average time from queued in kv_queue till commit finished");
+  b.add_time_avg(l_bluestore_aio_lat, "bluestore_aio_lat",
+                 "the average time for aio latency");
   b.add_time_avg(l_bluestore_state_prepare_lat, "state_prepare_lat",
                  "Average prepare state latency");
   b.add_time_avg(l_bluestore_state_aio_wait_lat, "state_aio_wait_lat",
@@ -12389,12 +12391,13 @@ void BlueStore::_txc_state_proc(TransContext *txc)
     case TransContext::STATE_PREPARE:
       throttle.log_state_latency(*txc, logger, l_bluestore_state_prepare_lat);
       //txc->time_created = ceph_clock_now();
-      txc->time_aio_submit = ceph_clock_now();
+      //txc->time_aio_submit = ceph_clock_now();
+      //dout(0)<<"###1 pending_aios="<<txc->ioc.has_pending_aios()<<", running_aio="<<txc->ioc.num_running.load()<<dendl;
       if (txc->ioc.has_pending_aios())
       {
         txc->state = TransContext::STATE_AIO_WAIT;
         txc->had_ios = true;
-        txc->time_aio_submit = ceph_clock_now(); // 
+        txc->time_aio_submit = ceph_clock_now(); // timestamp for aio submit
         _txc_aio_submit(txc); // submit aio to KernelDevice
         return;
       }
@@ -12402,7 +12405,9 @@ void BlueStore::_txc_state_proc(TransContext *txc)
 
     case TransContext::STATE_AIO_WAIT:
     {
-      txc->time_aio_done = ceph_clock_now();
+      //txc->time_aio_done = ceph_clock_now();
+      txc->aio_latency += ceph_clock_now() - txc->last_stamp;
+      //dout(0)<<"###2 pending_aios="<<txc->ioc.has_pending_aios()<<", running_aio="<<txc->ioc.num_running.load()<<dendl;
       //dout(0)<<"### aio_delay="<<txc->time_aio_done - txc->time_aio_submit <<", txc->time_aio_done="<<txc->time_aio_done<<dendl;
       utime_t lat = throttle.log_state_latency(
           *txc, logger, l_bluestore_state_aio_wait_lat);
@@ -12418,14 +12423,17 @@ void BlueStore::_txc_state_proc(TransContext *txc)
 
     case TransContext::STATE_IO_DONE:
       ceph_assert(ceph_mutex_is_locked(txc->osr->qlock)); // see _txc_finish_io
-      //txc->time_aio_done = ceph_clock_now();
-      //dout(0)<<"### aio_delay="<<txc->time_aio_done - txc->time_aio_submit <<", txc->time_aio_done="<<txc->time_aio_done<<dendl;
+      txc->time_aio_done = ceph_clock_now();
+      txc->aio_latency += ceph_clock_now() - txc->last_stamp;
+      //dout(0)<<"###3 pending_aios="<<txc->ioc.has_pending_aios()<<", running_aio="<<txc->ioc.num_running.load()<<dendl;
+      //dout(0)<<"### aio_delay="<<txc->time_aio_done - txc->time_aio_submit <<", txc->aio_latency="<<txc->aio_latency<<dendl;
       //throttle.aio_lat_vec.push_back((double)(txc->time_aio_done - txc->time_aio_submit).to_nsec() / 1000000000);
       if (txc->had_ios)
       {
         ++txc->osr->txc_with_unstable_io;
       }
       throttle.log_state_latency(*txc, logger, l_bluestore_state_io_done_lat);
+      
       txc->state = TransContext::STATE_KV_QUEUED;
       if (cct->_conf->bluestore_sync_submit_transaction)
       {
@@ -13151,6 +13159,7 @@ void BlueStore::_kv_sync_thread()
       //dout(0)<<"### batch size="<<throttle.kv_queue_upper_bound_size<<", conf->batch size="<<cct->_conf->kv_queue_upper_bound_size<<dendl;
       if (cct->_conf->enable_batch_bound && kv_queue.size() > throttle.kv_queue_upper_bound_size && kv_queue_unsubmitted.size() > throttle.kv_queue_upper_bound_size)
       {
+        //dout(0)<<"batch_bound is enabled"<<dendl;
         kv_committing.insert(kv_committing.begin(),
                              std::make_move_iterator(kv_queue.begin()),
                              std::make_move_iterator(kv_queue.begin() + throttle.kv_queue_upper_bound_size));
@@ -13305,7 +13314,7 @@ void BlueStore::_kv_sync_thread()
       // transaction is ready for commit.
       if (cct->_conf->enable_throttle)
       {
-        //dout(0)<<__func__<<" ### bluestore throttle put called." << dendl;
+        //dout(0)<<__func__<<" throttler is enabled"<< dendl;
         throttle.release_kv_throttle(costs);
       }
 
@@ -13372,10 +13381,11 @@ void BlueStore::_kv_sync_thread()
           throttle.count_inc();
           txc->time_measure_end = codel_after_commit;
           auto cur_queue_delay = txc->time_measure_end - txc->time_kvq_in; // from queued in kv_q to finish
-          auto txc_aio_delay = txc->time_aio_done - txc->time_aio_submit; // aio delay for this txc
+          //auto txc_aio_delay = txc->time_aio_done - txc->time_aio_submit; // aio delay for this txc
           //dout(0)<<"### kv_delay="<<cur_queue_delay<<dendl;
           // total_lat = aio_lat + kvq+lat
-          auto total_bluestore_simple_write_lat = cur_queue_delay + txc_aio_delay;
+          auto total_bluestore_simple_write_lat = cur_queue_delay + txc->aio_latency;
+          logger->tinc(l_bluestore_aio_lat, txc->aio_latency); 
           //dout(0)<<"### total_bluestore_simple_write_lat="<<total_bluestore_simple_write_lat<<dendl;
           logger->tinc(l_bluestore_kvq_lat, cur_queue_delay); // kv queueing latency (from kv_qeueue enqueue to commit finish)
           throttle.kvq_lat_vec.push_back((double)cur_queue_delay.to_nsec() / 1000000000);
@@ -13767,6 +13777,7 @@ struct C_DeferredTrySubmit : public Context
 
 void BlueStore::_deferred_aio_finish(OpSequencer *osr)
 {
+  //dout(0)<<"deferring"<<dendl;
   dout(10) << __func__ << " osr " << osr << dendl;
   ceph_assert(osr->deferred_running);
   DeferredBatch *b = osr->deferred_running;
@@ -13940,6 +13951,7 @@ int BlueStore::queue_transactions(
   //if(cct->_conf->enable_codel && throttle.get_should_block()) {
   if (cct->_conf->enable_codel)
   {
+    //dout(0)<<"codel is enabled"<<dendl;
     // codel: block the osd_op_tp thread
     std::unique_lock<std::mutex> t_lk{throttle.t_mtx};
     //while (throttle.get_should_block()) {
@@ -14641,9 +14653,10 @@ void BlueStore::_do_write_small(
           {
             if (b_len <= prefer_deferred_size)
             {
-              dout(0) << __func__ << " deferring small 0x" << std::hex
+              // deferred_write: 
+              dout(30) << __func__ << " deferring small 0x" << std::hex
                       << b_len << std::dec << " unused write via deferred" << dendl;
-              bluestore_deferred_op_t *op = _get_deferred_op(txc);
+              bluestore_deferred_op_t *op = _get_deferred_op(txc); // WAL data stracture
               op->op = bluestore_deferred_op_t::OP_WRITE;
               b->get_blob().map(
                   b_off, b_len,
@@ -14655,6 +14668,7 @@ void BlueStore::_do_write_small(
             }
             else
             {
+              // simple_write: add ioc to pending queue
               b->get_blob().map_bl(
                   b_off, bl,
                   [&](uint64_t offset, bufferlist &t) {
@@ -14743,6 +14757,7 @@ void BlueStore::_do_write_small(
 
           if (!g_conf()->bluestore_debug_omit_block_device_write)
           {
+            //by default it's false, so this block will be executed
             bluestore_deferred_op_t *op = _get_deferred_op(txc);
             op->op = bluestore_deferred_op_t::OP_WRITE;
             int r = b->get_blob().map(
@@ -14924,7 +14939,7 @@ void BlueStore::_do_write_big(
     uint32_t l = std::min(max_bsize, length);
     BlobRef b;
     uint32_t b_off = 0;
-
+    //dout(0)<<"### wctx->compress="<<wctx->compress<<dendl; //  0
     //attempting to reuse existing blob
     if (!wctx->compress)
     {
@@ -15081,7 +15096,7 @@ int BlueStore::_do_alloc_write(
   // compress (as needed) and calc needed space
   uint64_t need = 0;
   auto max_bsize = std::max(wctx->target_blob_size, min_alloc_size);
-  for (auto &wi : wctx->writes)
+  for (auto &wi : wctx->writes) 
   {
     if (c && wi.blob_length > min_alloc_size)
     {
@@ -15439,7 +15454,10 @@ void BlueStore::_do_write_data(
 {
   uint64_t end = offset + length;
   bufferlist::iterator p = bl.begin();
-
+  // length is the data size
+  //dout(0)<<"### offset="<<offset<<", len="<<length<<", min_alloc_size="<<min_alloc_size<<dendl;
+  //dout(0)<<"### offset / min_alloc_size="<<offset / min_alloc_size<<", (end - 1) / min_alloc_size="
+  //<<(end - 1) / min_alloc_size<<dendl;
   if (offset / min_alloc_size == (end - 1) / min_alloc_size &&
       (length != min_alloc_size))
   {
@@ -15460,7 +15478,7 @@ void BlueStore::_do_write_data(
 
     middle_offset = head_offset + head_length;
     middle_length = length - head_length - tail_length;
-
+    //dout(0)<<"### head_length="<<head_length<<", tail_length="<<tail_length<<", middle="<<middle_length<<dendl;
     if (head_length)
     {
       _do_write_small(txc, c, o, head_offset, head_length, p, wctx);
