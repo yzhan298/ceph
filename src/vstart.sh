@@ -690,7 +690,7 @@ EOF
 	bluestore_throttle_cost_per_io = 0
 	bluestore_throttle_cost_per_io_hdd = 100000
 	bluestore_throttle_cost_per_io_ssd = 100000
-	bdev_block_size = 0
+	bdev_block_size = 4096
 	bluestore_min_alloc_size = 0
 	bluestore_min_alloc_size_hdd = 65536
 	bluestore_min_alloc_size_ssd =  16384
