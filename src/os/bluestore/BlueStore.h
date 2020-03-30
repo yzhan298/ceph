@@ -72,7 +72,8 @@ enum {
   l_bluestore_kv_commit_lat,
   l_bluestore_kv_sync_lat,
   l_bluestore_kv_final_lat,
-  l_bluestore_service_lat, // from state KV_PREPARED to KV_FINISHED(total time for a txc in BlueStore)
+  l_bluestore_deferred_writes_lat, // latency for deferred writes
+  l_bluestore_simple_writes_lat, // latency for simple writes
   l_bluestore_kvq_lat, // the average time from queued in kv_queue till commit finished
   l_bluestore_aio_lat,
   l_bluestore_state_prepare_lat,
@@ -1553,10 +1554,10 @@ public:
     utime_t start;
     utime_t last_stamp;
 
-    utime_t time_created; // time when first created (enters BlueStore)
-    utime_t time_finished; // time when finished
-    utime_t time_aio_submit; // time when aio is submitted
-    utime_t time_aio_done; // time when aio is done(calling state machine again)
+    utime_t time_deferred_writes_begin; // beginning time for deferred writes
+    utime_t time_deferred_writes_end; // ending time for deferred writes
+    utime_t time_simple_writes_begin; // time when aio is submitted for simple writes
+    utime_t time_simple_writes_end; // time when aio is done(calling state machine again)
     utime_t time_kvq_in; // time when txc is pushed into kv_queue
     utime_t time_kvq_out; // time when txc is swapped out from kv_queue
     utime_t time_measure_end; // end time for codel measurement
