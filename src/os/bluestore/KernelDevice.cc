@@ -460,6 +460,7 @@ int KernelDevice::flush()
                                                        // return 0 when data is written to disks
   utime_t end = ceph_clock_now();
   utime_t dur = end - start;
+  //dout(0)<<"### fdatasync time="<<dur<<dendl;
   if (r < 0)
   {
     r = -errno;

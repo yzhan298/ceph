@@ -9561,7 +9561,7 @@ void OSD::enqueue_op(spg_t pg, OpRequestRef&& op, epoch_t epoch)
   op->osd_trace.keyval("cost", cost);
   op->mark_queued_for_pg();
   logger->tinc(l_osd_op_before_queue_op_lat, latency);
-  op->set_enqueued_time(ceph_clock_now());
+  op->enqueued_time = ceph_clock_now();
   op_shardedwq.queue(
     OpQueueItem(
       unique_ptr<OpQueueItem::OpQueueable>(new PGOpItem(pg, std::move(op))),
@@ -9609,22 +9609,21 @@ void OSD::dequeue_op(
   FUNCTRACE(cct);
   OID_EVENT_TRACE_WITH_MSG(m, "DEQUEUE_OP_BEGIN", false);
 
-  utime_t now = ceph_clock_now();
-  op->set_dequeued_time(now);
-  auto op_queue_time = op->dequeued_time - op->enqueued_time;
-  dout(30)<<" op_queue duration="<<op_queue_time<<dendl;
-  logger->set(l_osd_op_queueing_time, op_queue_time); 
+  //utime_t now = ceph_clock_now();
+  //op->set_dequeued_time(now);
+  op->dequeued_time = ceph_clock_now();
+  auto op_queue_lat = op->dequeued_time - op->enqueued_time;
+  logger->tinc(l_osd_op_queueing_time, op_queue_lat); 
   //opq_lat_vec.push_back(op_queue_time);
   
-  utime_t latency = now - m->get_recv_stamp();
+  //utime_t latency = op->dequeued_time - m->get_recv_stamp();
   //opq_lat_vec.push_back(latency); // NOTE this line will cause memory violation
   dout(10) << "dequeue_op " << op << " prio " << m->get_priority()
 	   << " cost " << m->get_cost()
-	   << " latency " << latency
 	   << " " << *m
 	   << " pg " << *pg << dendl;
 
-  logger->tinc(l_osd_op_before_dequeue_op_lat, latency);
+  //logger->tinc(l_osd_op_before_dequeue_op_lat, latency);
 
   service.maybe_share_map(m->get_connection().get(),
 			  pg->get_osdmap(),

@@ -127,6 +127,9 @@ PerfCounters *build_osd_logger(CephContext *cct) {
   osd_plb.add_u64_counter(l_osd_op_queue_size, "op_queue_size", "number of requests(all clients) in shardedopwq");
   osd_plb.add_time_avg(l_osd_op_queueing_time, "osd_op_queueing_time",
     "average queueing time for an op in sharded_opq");
+  osd_plb.add_time_avg(l_osd_op_in_osd_lat, "osd_op_in_osd_lat",
+    "average time for an op in OSD layer");
+  
 
   osd_plb.add_u64_counter(
     l_osd_sop, "subop", "Suboperations");

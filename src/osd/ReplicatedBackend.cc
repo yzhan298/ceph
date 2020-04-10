@@ -524,9 +524,9 @@ void ReplicatedBackend::submit_transaction(
   tls.push_back(std::move(op_t));
 
   orig_op->leave_osd_time = ceph_clock_now();
-  auto op_in_osd_time = orig_op->leave_osd_time-orig_op->enqueued_time;
-  //dout(0)<<"###2 in osd duration="<<op_in_osd_time<<dendl;
-  //osd->logger->set(l_op_in_osd_time, op_in_osd_time); 
+  auto op_in_osd_lat = orig_op->leave_osd_time-orig_op->enqueued_time;
+  // after calling the queue_Transactions, the request is handed to BlueStore
+  get_parent()->get_logger()->tinc(l_osd_op_in_osd_lat, op_in_osd_lat); 
   parent->queue_transactions(tls, op.op);
   if (at_version != eversion_t()) {
     parent->op_applied(at_version);

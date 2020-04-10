@@ -4697,36 +4697,14 @@ void BlueStore::dump_kvq_vector(ostream &out)
   throttle.write_csv("kvq_lat_vec.csv", "kvq_lat", throttle.kvq_lat_vec); // from kv_q enqueue to commit done
   throttle.write_csv("kv_sync_lat_vec.csv", "kv_sync_lat", throttle.kv_sync_lat_vec);
   throttle.write_csv("txc_bytes_vec.csv", "txc_size", throttle.txc_bytes_vec);
-  // dump KernelDevice aio latency
-  //throttle.write_csv("aio_lat_vec.csv", "aio_lat", throttle.aio_lat_vec);
-  // dump total latency in BlueStore(aio+kv)
-  throttle.write_csv("total_bluestore_simple_write_lat_vec.csv", "total_bluestore_lat", throttle.total_bluestore_simple_write_lat_vec);
-  // dump codel related vectors
+  throttle.write_csv("bluestore_lat_vec.csv","bluestore_lat",throttle.bluestore_lat_vec);
+  throttle.write_csv("bluestore_simple_writes_lat_vec.csv","bluestore_simple_writes_lat",throttle.bluestore_simple_writes_lat_vec);
+  throttle.write_csv("bluestore_deferred_writes_lat_vec.csv","bluestore_deferred_writes_lat",throttle.bluestore_deferred_writes_lat_vec);
+  throttle.write_csv("bluestore_simple_service_lat_vec.csv","bluestore_simple_service_lat",throttle.bluestore_simple_service_lat_vec);
+  throttle.write_csv("bluestore_deferred_service_lat_vec.csv","bluestore_deferred_service_lat_vec",throttle.bluestore_deferred_service_lat_vec);
   throttle.write_csv("kv_queue_size_vec.csv", "kv_queue_size", throttle.kv_queue_size_vec);
   //throttle.write_csv("blocking_dur_vec.csv", "blocking_dur", throttle.blocking_dur_vec);
-  /*if(throttle.kv_sync_lat_vec.size() > 10) {
-      // remove first and last 10 elements for stable results
-      throttle.kvq_lat_vec = vector<double>(throttle.kvq_lat_vec.begin()+10, throttle.kvq_lat_vec.end()-10);
-      throttle.kv_sync_lat_vec = vector<double>(throttle.kv_sync_lat_vec.begin()+10, throttle.kv_sync_lat_vec.end()-10);
-      throttle.txc_bytes_vec = vector<uint64_t>(throttle.txc_bytes_vec.begin()+10, throttle.txc_bytes_vec.end()-10);
-  }*/
-  // sort the vectors to get percentile data
-  /*std::sort(throttle.kvq_lat_vec.begin(), throttle.kvq_lat_vec.end());
-  std::sort(throttle.kv_sync_lat_vec.begin(), throttle.kv_sync_lat_vec.end());
-
-  double kvq_p99_lat = throttle.kvq_lat_vec[(int)(throttle.kvq_lat_vec.size()*0.99 - 1)];
-  double kvq_p95_lat = throttle.kvq_lat_vec[(int)(throttle.kvq_lat_vec.size()*0.95 - 1)];
-  double kvq_median_lat = throttle.kvq_lat_vec[(int)(throttle.kvq_lat_vec.size()*0.50 - 1)];
-  double kvq_min_lat = throttle.kvq_lat_vec[0];
   
-  double kv_sync_p99_lat = throttle.kv_sync_lat_vec[(int)(throttle.kv_sync_lat_vec.size()*0.99 - 1)];
-  double kv_sync_p95_lat = throttle.kv_sync_lat_vec[(int)(throttle.kv_sync_lat_vec.size()*0.95 - 1)];
-  double kv_sync_median_lat = throttle.kv_sync_lat_vec[(int)(throttle.kv_sync_lat_vec.size()*0.50 - 1)];
-  double kv_sync_min_lat = throttle.kv_sync_lat_vec[0];
-
-  vector<double> kvq_lat_analysis_vec{kvq_p99_lat, kvq_p95_lat, kvq_median_lat, kvq_min_lat, kv_sync_p99_lat, kv_sync_p95_lat, kv_sync_median_lat, kv_sync_min_lat};  
-  throttle.write_csv("kvq_lat_analysis_vec.csv", "latency(nsec)", kvq_lat_analysis_vec);
-  */
   out << "the vector is dumped"
       << "\n";
 }
@@ -5164,14 +5142,18 @@ void BlueStore::_init_logger()
   b.add_time_avg(l_bluestore_kv_final_lat, "kv_final_lat",
                  "Average kv_finalize thread latency",
                  "kf_l", PerfCountersBuilder::PRIO_INTERESTING);
-  b.add_time_avg(l_bluestore_deferred_writes_lat, "bluestore_deferred_writes_lat",
-                 "avg latency for deferred writes in bluestore");
   b.add_time_avg(l_bluestore_simple_writes_lat, "bluestore_simple_writes_lat",
                  "avg latency for simple writes in bluestore");
+  b.add_time_avg(l_bluestore_deferred_writes_lat, "bluestore_deferred_writes_lat",
+                 "avg latency for deferred writes in bluestore");
   b.add_time_avg(l_bluestore_kvq_lat, "bluestore_kvq_lat",
                  "the average time from queued in kv_queue till commit finished");
+  b.add_time_avg(l_bluestore_kv_queue_time, "bluestore_kv_queue_time",
+                 "the average time spent in kv_queue");
   b.add_time_avg(l_bluestore_aio_lat, "bluestore_aio_lat",
-                 "the average time for aio latency");
+                 "the average time for aio latency(1 flush + 1 kv commit + 1 aio)");
+  b.add_time_avg(l_bluestore_dio_lat, "bluestore_dio_lat",
+                 "the average time for deferred io service latency(2 flush + 1 kv commit + 1 aio)");
   b.add_time_avg(l_bluestore_state_prepare_lat, "state_prepare_lat",
                  "Average prepare state latency");
   b.add_time_avg(l_bluestore_state_aio_wait_lat, "state_aio_wait_lat",
@@ -12391,7 +12373,7 @@ void BlueStore::_txc_state_proc(TransContext *txc)
     switch (txc->state)
     {
     case TransContext::STATE_PREPARE:
-      throttle.log_state_latency(*txc, logger, l_bluestore_state_prepare_lat);
+      throttle.log_state_latency(*txc, logger, l_bluestore_state_prepare_lat); // txc.last_stamp is reset to now
       //txc->time_created = ceph_clock_now();
       //dout(0)<<"###1 pending_aios="<<txc->ioc.has_pending_aios()<<", running_aio="<<txc->ioc.num_running.load()<<dendl;
       //txc->time_aio_submit = ceph_clock_now();
@@ -12399,10 +12381,14 @@ void BlueStore::_txc_state_proc(TransContext *txc)
 
       if (txc->ioc.has_pending_aios())
       {
+        // if there are aios, we call aio_submit first(path of simple writes)
         txc->state = TransContext::STATE_AIO_WAIT;
         txc->had_ios = true;
         txc->time_simple_writes_begin = ceph_clock_now(); // timestamp for aio submit
-        _txc_aio_submit(txc); // submit aio to KernelDevice
+        //txc->time_aioq_out = ceph_clock_now(); // time when txc->ioc is moved from pending_aios to running_aios to submit
+        //logger->tinc(l_bluestore_aioq_time, txc->time_aioq_out - txc->time_aioq_in);
+        txc->aio_last_timestamp = ceph_clock_now();
+        _txc_aio_submit(txc); // submit aio to KernelDevice(pending_aios to running_aios)
         return;
       }else {
         txc->time_deferred_writes_begin = ceph_clock_now();
@@ -12412,22 +12398,19 @@ void BlueStore::_txc_state_proc(TransContext *txc)
     case TransContext::STATE_AIO_WAIT:
     {
       //txc->time_aio_done = ceph_clock_now();
-      //dout(0)<<"###4 defer state()should be 0="<<txc->state<<dendl;
       // If it's deferred write, the state should be 0 here
-      /*if(txc->state == 0) {
-        txc->time_deferred_io_submit = ceph_clock_now(); // deferred io starts
-      }*/
-      // this should not be called aio_latency, because it also include deferred io path
-      // let's change it aio_dio_latency
+      // let's change it aio_dio_latency(do not use it )
       // if it's aio, then aio_dio_latency != 0(aio is persisted on disk)
       // if it's dio, then aio_dio_latency == 0
-      txc->aio_dio_latency += ceph_clock_now() - txc->last_stamp;
-      txc->aio_latency += ceph_clock_now() - txc->last_stamp;
-
-      //dout(0)<<"###2 pending_aios="<<txc->ioc.has_pending_aios()<<", running_aio="<<txc->ioc.num_running.load()<<dendl;
-      //dout(0)<<"### aio_delay="<<txc->time_aio_done - txc->time_simple_writes_begin <<", txc->time_aio_done="<<txc->time_aio_done<<dendl;
+      //txc->aio_dio_latency += ceph_clock_now() - txc->last_stamp;
+      
+      // aio_latency-1: add aio time
+      if(txc->aio_last_timestamp != utime_t{0,0}) {
+        txc->aio_latency += ceph_clock_now() - txc->aio_last_timestamp;
+      }
+      
       utime_t lat = throttle.log_state_latency(
-          *txc, logger, l_bluestore_state_aio_wait_lat);
+          *txc, logger, l_bluestore_state_aio_wait_lat); // txc->last_stamp from STATE_PREPARE
       if (lat >= cct->_conf->bluestore_log_op_age)
       {
         dout(30) << __func__ << " slow aio_wait, txc = " << txc
@@ -12443,23 +12426,18 @@ void BlueStore::_txc_state_proc(TransContext *txc)
 
     case TransContext::STATE_IO_DONE:
       ceph_assert(ceph_mutex_is_locked(txc->osr->qlock)); // see _txc_finish_io
-      txc->time_simple_writes_end = ceph_clock_now();
-      txc->aio_latency += ceph_clock_now() - txc->last_stamp;
+      //txc->aio_latency += ceph_clock_now() - txc->last_stamp;
 
-      //dout(0)<<"###3 pending_aios="<<txc->ioc.has_pending_aios()<<", running_aio="<<txc->ioc.num_running.load()<<dendl;
-      //dout(0)<<"### aio_delay="<<txc->time_aio_done - txc->time_simple_writes_begin <<", txc->aio_latency="<<txc->aio_latency<<dendl;
-      //throttle.aio_lat_vec.push_back((double)(txc->time_aio_done - txc->time_simple_writes_begin).to_nsec() / 1000000000);
 
       // if it's aio, the aio is persisted on disk now.
       // if it's dio, we need to add the WAL to kv_queue. 
-      txc->aio_dio_latency += ceph_clock_now() - txc->last_stamp;
-      //throttle.aio_lat_vec.push_back((double)(txc->time_aio_done - txc->time_aio_submit).to_nsec() / 1000000000);
+      //txc->aio_dio_latency += ceph_clock_now() - txc->last_stamp;
       // if it's aio, then had_ios is true; otherwise, it's false
       if (txc->had_ios)
       {
         ++txc->osr->txc_with_unstable_io;
       }
-      throttle.log_state_latency(*txc, logger, l_bluestore_state_io_done_lat);
+      throttle.log_state_latency(*txc, logger, l_bluestore_state_io_done_lat); // txc->last_stamp from STATE_AIO_WAIT
       
       txc->state = TransContext::STATE_KV_QUEUED;
       if (cct->_conf->bluestore_sync_submit_transaction)
@@ -12494,15 +12472,13 @@ void BlueStore::_txc_state_proc(TransContext *txc)
         std::lock_guard l(kv_lock);
         kv_queue.push_back(txc);
 
-        // codel: kv_queue enqueue timestamp
-        auto time_kvq_in = ceph_clock_now();
-        txc->time_kvq_in = time_kvq_in;
+        // kv_queue enqueue timestamp
+        txc->time_kvq_in = ceph_clock_now();
         //throttle.count_check();
         //dout(1) << "current count is "<< throttle.count_cur() <<", kv_queue size="<<kv_queue.size() <<dendl;
         // NOTE: count != kv_queue.size
 
         // set codel time interval start
-        //set_interval_begin(time_kvq_in);
 
         if (!kv_sync_in_progress)
         {
@@ -12527,6 +12503,24 @@ void BlueStore::_txc_state_proc(TransContext *txc)
 
     case TransContext::STATE_KV_DONE:
       throttle.log_state_latency(*txc, logger, l_bluestore_state_kv_done_lat);
+      // now we can safely inform client the write is done.
+      if(txc->time_deferred_writes_begin != utime_t{0, 0}) {
+        // collecting deferred writes path latency in bluestore
+        txc->time_deferred_writes_end = ceph_clock_now();
+        auto bs_deferred_writes_lat = txc->time_deferred_writes_end - txc->time_deferred_writes_begin;
+        logger->tinc(l_bluestore_deferred_writes_lat, bs_deferred_writes_lat);
+        throttle.bluestore_deferred_writes_lat_vec.push_back((double)bs_deferred_writes_lat.to_nsec() / 1000000000);
+        throttle.bluestore_lat_vec.push_back((double)bs_deferred_writes_lat.to_nsec() / 1000000000);
+      }
+      if(txc->time_simple_writes_begin != utime_t{0, 0}) {
+        // collecting simple writes path latency in bluestore
+        txc->time_simple_writes_end = ceph_clock_now();
+        auto bs_simple_writes_lat = txc->time_simple_writes_end - txc->time_simple_writes_begin;
+        logger->tinc(l_bluestore_simple_writes_lat, bs_simple_writes_lat);
+        throttle.bluestore_simple_writes_lat_vec.push_back((double)bs_simple_writes_lat.to_nsec() / 1000000000);
+        throttle.bluestore_lat_vec.push_back((double)bs_simple_writes_lat.to_nsec() / 1000000000);
+      }
+
       if (txc->deferred_txn)
       {
         txc->state = TransContext::STATE_DEFERRED_QUEUED;
@@ -12534,7 +12528,7 @@ void BlueStore::_txc_state_proc(TransContext *txc)
         return;
       }
       txc->state = TransContext::STATE_FINISHING;
-      break;
+      break; // done
 
     case TransContext::STATE_DEFERRED_CLEANUP:
       throttle.log_state_latency(*txc, logger, l_bluestore_state_deferred_cleanup_lat);
@@ -12567,14 +12561,14 @@ void BlueStore::_txc_finish_io(TransContext *txc)
   OpSequencer *osr = txc->osr.get();
   std::lock_guard l(osr->qlock);
   txc->state = TransContext::STATE_IO_DONE;
-  txc->ioc.release_running_aios();
+  txc->ioc.release_running_aios(); // release aio contexts: running_aios.clear()
   OpSequencer::q_list_t::iterator p = osr->q.iterator_to(*txc);
   while (p != osr->q.begin())
   {
     --p;
     if (p->state < TransContext::STATE_IO_DONE)
     {
-      dout(20) << __func__ << " " << txc << " blocked by " << &*p << " "
+      dout(20) << __func__ << " " << txc << ", blocked by " << &*p << " "
                << p->get_state_name() << dendl;
       return;
     }
@@ -12724,6 +12718,7 @@ void BlueStore::_txc_apply_kv(TransContext *txc, bool sync_submit_transaction)
 #endif
     // this is async submit, calling submit_common()
     // we can get RocksDB WriteBatch size with _t->bat.Count()
+    txc->dio_last_timestamp = ceph_clock_now(); // for dio_latency 1
     int r = cct->_conf->bluestore_debug_omit_kv_commit ? 0 : db->submit_transaction(txc->t);
     ceph_assert(r == 0);
 
@@ -12740,11 +12735,13 @@ void BlueStore::_txc_apply_kv(TransContext *txc, bool sync_submit_transaction)
     }
 #endif
   }
-
   for (auto ls : {&txc->onodes, &txc->modified_objects})
   {
+    // ls is the address for txc->modified_objects, namely ls = &txc->modified_objects
+    // *ls is the address for txc->onodes, namely *ls = &txc->onodes 
     for (auto &o : *ls)
     {
+      // loop through onodes
       dout(20) << __func__ << " onode " << o << " had " << o->flushing_count << dendl;
       if (--o->flushing_count == 0 && o->waiting_count.load())
       {
@@ -12761,7 +12758,9 @@ void BlueStore::_txc_committed_kv(TransContext *txc)
   throttle.complete_kv(*txc); // for LTTNG tracing 
   {
     std::lock_guard l(txc->osr->qlock);
+    //dout(0)<<"###1.1 state="<<txc->state<<dendl; //4
     txc->state = TransContext::STATE_KV_DONE;
+    //dout(0)<<"###1.2 state="<<txc->state<<dendl; //5
     if (txc->ch->commit_queue)
     {
       txc->ch->commit_queue->queue(txc->oncommits);
@@ -12770,6 +12769,7 @@ void BlueStore::_txc_committed_kv(TransContext *txc)
     {
       finisher.queue(txc->oncommits);
     }
+    //dout(0)<<"###1.3 state="<<txc->state<<dendl; //5
   }
   throttle.log_state_latency(*txc, logger, l_bluestore_state_kv_committing_lat);
   log_latency_fn(
@@ -12780,6 +12780,7 @@ void BlueStore::_txc_committed_kv(TransContext *txc)
       [&](auto lat) {
         return ", txc = " + stringify(txc);
       });
+  //dout(0)<<"###1.4 state="<<txc->state<<dendl; //5
 }
 
 void BlueStore::_txc_finish(TransContext *txc)
@@ -12826,16 +12827,22 @@ void BlueStore::_txc_finish(TransContext *txc)
         }
         break;
       }
-      txc->time_deferred_writes_end = ceph_clock_now();
+      /*txc->time_deferred_writes_end = ceph_clock_now();
       txc->time_simple_writes_end = txc->time_deferred_writes_end;
       if(txc->time_deferred_writes_begin != utime_t{0, 0}) {
         // collecting deferred writes path latency in bluestore
-        logger->tinc(l_bluestore_deferred_writes_lat, txc->time_deferred_writes_end - txc->time_deferred_writes_begin);
-      }
-      if(txc->time_simple_writes_begin != utime_t{0, 0}) {
+        auto bs_deferred_writes_lat = txc->time_deferred_writes_end - txc->time_deferred_writes_begin;
+        logger->tinc(l_bluestore_deferred_writes_lat, bs_deferred_writes_lat);
+        throttle.bluestore_deferred_writes_lat_vec.push_back((double)bs_deferred_writes_lat.to_nsec() / 1000000000);
+        throttle.bluestore_lat_vec.push_back((double)bs_deferred_writes_lat.to_nsec() / 1000000000);
+      }*/
+      /*if(txc->time_simple_writes_begin != utime_t{0, 0}) {
         // collecting simple writes path latency in bluestore
-        logger->tinc(l_bluestore_simple_writes_lat, txc->time_simple_writes_end - txc->time_simple_writes_begin);
-      }
+        auto bs_simple_writes_lat = txc->time_simple_writes_end - txc->time_simple_writes_begin;
+        logger->tinc(l_bluestore_simple_writes_lat, bs_simple_writes_lat);
+        throttle.bluestore_simple_writes_lat_vec.push_back((double)bs_simple_writes_lat.to_nsec() / 1000000000);
+        throttle.bluestore_lat_vec.push_back((double)bs_simple_writes_lat.to_nsec() / 1000000000);
+      }*/
       
       osr->q.pop_front();
       releasing_txc.push_back(*txc);
@@ -13176,14 +13183,12 @@ void BlueStore::_kv_sync_thread()
     }
     else
     {
-      auto bst5 = ceph_clock_now(); // the begining of a kv_sync_thread
-      dout(1) << " ### _kv_sync_thread starting time=" << bst5 << dendl;
       deque<TransContext *> kv_submitting;
       deque<DeferredBatch *> deferred_done, deferred_stable;
       uint64_t aios = 0, costs = 0;
 
       // get kv_queue size
-      dout(10) << __func__ << "###1 committing " << kv_queue.size()
+      dout(10) << __func__ << " committing " << kv_queue.size()
                << " submitting " << kv_queue_unsubmitted.size()
                << " deferred done " << deferred_done_queue.size()
                << " stable " << deferred_stable_queue.size()
@@ -13213,6 +13218,14 @@ void BlueStore::_kv_sync_thread()
       logger->set(l_bluestore_kv_queue_size, kv_queue.size());
       logger->set(l_bluestore_kv_queue_avg_size, kvq_avg_size);
 
+      for(auto txc : kv_queue) {
+        txc->time_kvq_out = ceph_clock_now();
+        auto bs_kv_queue_time = txc->time_kvq_out - txc->time_kvq_in;
+        logger->tinc(l_bluestore_kv_queue_time, bs_kv_queue_time);
+        //dout(0)<<"### state="<<txc->state<<", deferred_txn="<<txc->deferred_txn<<dendl; // state=3
+      }
+      
+
       if (kv_committing.empty() && kv_submitting.empty())
       {
         kv_committing.swap(kv_queue);
@@ -13227,6 +13240,7 @@ void BlueStore::_kv_sync_thread()
       kv_ios = 0;
       kv_throttle_costs = 0;
       l.unlock();
+
       dout(30) << __func__ << " committing " << kv_committing << dendl;
       dout(30) << __func__ << " submitting " << kv_submitting << dendl;
       dout(30) << __func__ << " deferred_done " << deferred_done << dendl;
@@ -13241,21 +13255,26 @@ void BlueStore::_kv_sync_thread()
       // txcs AND we are not on a single device, we need to force a flush.
       if (bluefs && bluefs_layout.single_shared_device())
       {
+        //dout(0)<<"###1 yes"<<dendl; // called
         if (aios)
         {
+          //dout(0)<<"### 1"<<dendl; // called 
           force_flush = true;
         }
         else if (kv_committing.empty() && deferred_stable.empty())
         {
+          //dout(0)<<"### 2"<<dendl; // never called
           force_flush = true; // there's nothing else to commit!
         }
         else if (deferred_aggressive)
         {
+          //dout(0)<<"### 3"<<dendl; //never called 
           force_flush = true;
         }
       }
       else
       {
+        //dout(0)<<"###2 no"<<dendl; // never called in my test
         if (aios || !deferred_done.empty())
         {
           force_flush = true;
@@ -13267,6 +13286,25 @@ void BlueStore::_kv_sync_thread()
       }
       // deferred write will access here twice, first time the force_flush 
       // should be 0, and the second time should be 1
+      dout(10)<<"### force flush="<<force_flush<<", deferred_done="<<deferred_done.size()
+      <<", committing_queue="<<kv_committing.size()
+      <<", kv_submitting="<<kv_submitting.size()<<dendl;
+      
+      // add DeferredBatch flush and commit latency(this is second time here for dio) 
+      if(!deferred_done.empty()) {
+        for(auto dtxc : deferred_done) {
+          for (auto &txc : dtxc->txcs) {
+            txc.dio_deferred_batch_last_timestamp = ceph_clock_now();
+          }
+          //dtxc-> defbatch_dio_last_timestamp = ceph_clock_now();
+        }
+      }
+      // add simple write flush and commit latency
+      if(!kv_committing.empty()) {
+        for(auto txc : kv_committing) {
+          txc->aio_last_timestamp = ceph_clock_now();
+        }
+      }
       if (force_flush)
       {
         dout(20) << __func__ << " num_aios=" << aios
@@ -13275,15 +13313,26 @@ void BlueStore::_kv_sync_thread()
         // flush/barrier on block device
         bdev->flush();
 
+        if(!deferred_done.empty()) {
+          for(auto dtxc : deferred_done) {
+            for (auto &txc : dtxc->txcs) {
+              txc.dio_deferred_batch_last_timestamp = ceph_clock_now();
+              // dio_latency-3: add flush() time for deferred txc 
+              txc.dio_latency += ceph_clock_now() - txc.dio_deferred_batch_last_timestamp;
+              logger->tinc(l_bluestore_dio_lat, txc.dio_latency); 
+              //dout(0)<<"txc.dio_latency"<<txc.dio_latency<<dendl;
+              throttle.bluestore_deferred_service_lat_vec.push_back(txc.dio_latency);
+            }
+          }
+        }
         // if we flush then deferred done are now deferred stable
         deferred_stable.insert(deferred_stable.end(), deferred_done.begin(),
                                deferred_done.end());
         deferred_done.clear();
       }
       auto after_flush = mono_clock::now();
-      auto bst6 = ceph_clock_now(); // right after bdev->flush()
 
-      // we will use one final transaction to force a sync
+      // we will use one final transaction to force a sync 
       KeyValueDB::Transaction synct = db->get_transaction();
       // increase {nid,blobid}_max?  note that this covers both the
       // case where we are approaching the max and the case we passed
@@ -13317,8 +13366,10 @@ void BlueStore::_kv_sync_thread()
         if (txc->state == TransContext::STATE_KV_QUEUED)
         {
           // for dio WAL, it goes in this block
-          // this function calls db->submit_transaction(txc->t)
+          // this function calls db->submit_transaction(txc->t) (async submit) and change state to STATE_KV_SUBMITTED
+          //dout(0)<<"had_ios="<<txc->had_ios<<", deferred_txn="<<txc->deferred_txn<<dendl;
           _txc_apply_kv(txc, false); // release onode flush_cond lock and update onode related counter
+
           --txc->osr->kv_committing_serially;
           txc->state = TransContext::STATE_KV_SUBMITTED;
           if (txc->osr->kv_submitted_waiters)
@@ -13368,7 +13419,7 @@ void BlueStore::_kv_sync_thread()
           ceph_assert(wt.released.empty()); // only kraken did this
           string key;
           get_deferred_key(wt.seq, &key);
-          synct->rm_single_key(PREFIX_DEFERRED, key);
+          synct->rm_single_key(PREFIX_DEFERRED, key); //delete from the synct, so don't commit to RocksDB（for deferred batch）
         }
       }
 
@@ -13412,19 +13463,15 @@ void BlueStore::_kv_sync_thread()
         for (auto txc : kv_committing)
         {
           throttle.count_inc();
-          txc->time_measure_end = codel_after_commit;
-          auto cur_queue_delay = txc->time_measure_end - txc->time_kvq_in; // from queued in kv_q to finish
+          auto cur_queue_delay = codel_after_commit - txc->time_kvq_in; // from queued in kv_q to finish
           //auto txc_aio_delay = txc->time_aio_done - txc->time_simple_writes_begin; // aio delay for this txc
           //dout(0)<<"### kv_delay="<<cur_queue_delay<<dendl;
           // total_lat = aio_lat + kvq+lat
-          auto total_bluestore_simple_write_lat = cur_queue_delay + txc->aio_latency;
-          logger->tinc(l_bluestore_aio_lat, txc->aio_latency); 
-          //dout(0)<<"### total_bluestore_simple_write_lat="<<total_bluestore_simple_write_lat<<dendl;
+          //auto total_bluestore_simple_write_lat = cur_queue_delay + txc->aio_latency;
+          //logger->tinc(l_bluestore_aio_lat, txc->aio_latency); 
           logger->tinc(l_bluestore_kvq_lat, cur_queue_delay); // kv queueing latency (from kv_qeueue enqueue to commit finish)
           throttle.kvq_lat_vec.push_back((double)cur_queue_delay.to_nsec() / 1000000000);
-          throttle.total_bluestore_simple_write_lat_vec.push_back((double)total_bluestore_simple_write_lat.to_nsec() / 1000000000);
           throttle.txc_bytes_vec.push_back(txc->bytes);
-          //dout(0)<<"### cur_queue_delay.to_nsec()="<<cur_queue_delay.to_nsec()<<", vec_size="<<throttle.kvq_lat_vec.size()<<dendl;
           if (throttle.count_cur() != kv_committing.size() && kv_committing.size() > 1)
           {
             if (throttle.get_min_lat_interval() == utime_t{0, 0})
@@ -13457,6 +13504,23 @@ void BlueStore::_kv_sync_thread()
                  << " deferred done " << deferred_done_queue.size()
                  << " stable " << deferred_stable_queue.size()
                  << ", txc size=" << dendl;
+      }
+
+      {
+        // flush() + commit() latency
+        auto finish_utime = ceph_clock_now(); // right after commit
+        for (auto txc : kv_committing) {
+
+          // aio_latency-2: add flush and commit latency for txc
+           txc->aio_latency += finish_utime - txc->aio_last_timestamp;
+           logger->tinc(l_bluestore_aio_lat, txc->aio_latency); 
+           throttle.bluestore_simple_service_lat_vec.push_back(txc->aio_latency);
+
+          // dio_latency-1: add flush() and commit() latency for txc
+          txc->dio_latency += finish_utime - txc->dio_last_timestamp; // dio_last_timestamp is from _txc_apply_kv, just
+                                                                      // before async db->submit_transaction
+                                                                      // this is only for WAL log in RocksDB                                                        
+        }
       }
 
       {
@@ -13505,11 +13569,10 @@ void BlueStore::_kv_sync_thread()
 
       {
         auto finish = mono_clock::now();
-        auto bst7 = ceph_clock_now(); // right after commit
-        dout(1) << __func__ << " ###05 commit delay = " << bst7 - bst6 << dendl;
         ceph::timespan dur_flush = after_flush - start;
         ceph::timespan dur_kv = finish - after_flush;
         ceph::timespan dur = finish - start;
+        
         dout(10) << __func__ << " committed " << committing_size
                  << " cleaned " << deferred_size
                  << " in " << dur
@@ -13606,7 +13669,9 @@ void BlueStore::_kv_finalize_thread()
       {
         TransContext *txc = kv_committed.front();
         ceph_assert(txc->state == TransContext::STATE_KV_SUBMITTED);
+        //dout(0)<<"###1 state="<<txc->state<<dendl; //4
         _txc_state_proc(txc);
+        //dout(0)<<"###2 state="<<txc->state<<dendl; //6
         kv_committed.pop_front();
       }
 
@@ -13668,14 +13733,17 @@ void BlueStore::_deferred_queue(TransContext *txc)
   if (!txc->osr->deferred_pending &&
       !txc->osr->deferred_running)
   {
+    //dout(0)<<"### 1"<<dendl; // 1 and 2 shows at the same time 
     deferred_queue.push_back(*txc->osr);
   }
   if (!txc->osr->deferred_pending)
   {
+    //dout(0)<<"### 2"<<dendl; // 1 and 2 shows at the same time 
     txc->osr->deferred_pending = new DeferredBatch(cct, txc->osr.get());
   }
   ++deferred_queue_size;
-  txc->osr->deferred_pending->txcs.push_back(*txc);
+  txc->osr->deferred_pending->txcs.push_back(*txc); // add txc to a batch(everything in deferred_pending is a batch)
+  //dout(0)<<"txc->osr->deferred_pending->txcs size="<<txc->osr->deferred_pending->txcs.size()<<dendl;
   bluestore_deferred_transaction_t &wt = *txc->deferred_txn;
   for (auto opi = wt.ops.begin(); opi != wt.ops.end(); ++opi)
   {
@@ -13691,6 +13759,8 @@ void BlueStore::_deferred_queue(TransContext *txc)
   if (deferred_aggressive &&
       !txc->osr->deferred_running)
   {
+    //txc->time_aioq_out = ceph_clock_now();
+    //txc->dio_io_submit = ceph_clock_now();
     _deferred_submit_unlock(txc->osr.get());
   }
   else
@@ -13754,6 +13824,7 @@ void BlueStore::_deferred_submit_unlock(OpSequencer *osr)
   for (auto &txc : b->txcs)
   {
     throttle.log_state_latency(txc, logger, l_bluestore_state_deferred_queued_lat);
+    txc.dio_last_timestamp = ceph_clock_now(); // prepare for aio_submit , for dio_latency 2
   }
   uint64_t start = 0, pos = 0;
   bufferlist bl;
@@ -13771,7 +13842,7 @@ void BlueStore::_deferred_submit_unlock(OpSequencer *osr)
         {
           logger->inc(l_bluestore_deferred_write_ops);
           logger->inc(l_bluestore_deferred_write_bytes, bl.length());
-          int r = bdev->aio_write(start, bl, &b->ioc, false);
+          int r = bdev->aio_write(start, bl, &b->ioc, false); // add to pending_aios
           ceph_assert(r == 0);
         }
       }
@@ -13821,6 +13892,8 @@ void BlueStore::_deferred_aio_finish(OpSequencer *osr)
     osr->deferred_running = nullptr;
     if (!osr->deferred_pending)
     {
+      // txc in deferred_running, so deferred_pending is empty
+      //dout(0)<<"### 1"<<dendl; // called
       dout(20) << __func__ << " dequeueing" << dendl;
       auto q = deferred_queue.iterator_to(*osr);
       deferred_queue.erase(q);
@@ -13828,6 +13901,7 @@ void BlueStore::_deferred_aio_finish(OpSequencer *osr)
     }
     else
     {
+      //dout(0)<<"### 2"<<dendl; // not called
       deferred_lock.unlock();
       if (deferred_aggressive)
       {
@@ -13847,6 +13921,10 @@ void BlueStore::_deferred_aio_finish(OpSequencer *osr)
       for (auto &i : b->txcs)
       {
         TransContext *txc = &i;
+        //txc->dio_io_finish = ceph_clock_now();
+        //txc->dio_aio_latency = txc->dio_io_finish - txc->dio_last_timestamp; // aio latency
+        // dio_latency-2: add aio_submit(in kerneldevice) latency 
+        txc->dio_latency += ceph_clock_now() - txc->dio_last_timestamp; // dio(without waiting) latency
         throttle.log_state_latency(*txc, logger, l_bluestore_state_deferred_aio_wait_lat);
         txc->state = TransContext::STATE_DEFERRED_CLEANUP;
         costs += txc->cost;
@@ -13940,7 +14018,6 @@ int BlueStore::queue_transactions(
       tls, &on_applied, &on_commit, &on_applied_sync); // move transaction.on_commit to list on_commit
 
   auto start = mono_clock::now();
-  auto bst1 = ceph_clock_now(); // bluestore latency model time stamp 1: begin in BlueStore
 
   Collection *c = static_cast<Collection *>(ch.get()); // get raw pointer to collection
   OpSequencer *osr = c->osr.get();                     // get raw pointer to collection
@@ -13949,14 +14026,14 @@ int BlueStore::queue_transactions(
   // prepare, create txc for transaction, add txc to oncommit, and return txc
   // include setattr, get_onode, process collections, etc.
   // txc state is STATE_PREPARE, and keeps order in osr 
-  TransContext *txc = _txc_create(static_cast<Collection *>(ch.get()), osr,
-                                  &on_commit);
+  TransContext *txc = _txc_create(static_cast<Collection *>(ch.get()), osr, &on_commit); // add txc to osr->q
 
   // convert OSD-layer transactions to BlueStore Transactions
   for (vector<Transaction>::iterator p = tls.begin(); p != tls.end(); ++p)
   {
     txc->bytes += (*p).get_num_bytes(); // get total size for this txc
-    _txc_add_transaction(txc, &(*p));   // for each transaction, we process the op, collection, onode, etc.
+    _txc_add_transaction(txc, &(*p));   // for each transaction, we process the op, collection, onode, etc. 
+                                        // also, call _write and do_write_data to process big/small writes.
   }
   _txc_calc_cost(txc);
 
@@ -13970,16 +14047,15 @@ int BlueStore::queue_transactions(
     encode(*txc->deferred_txn, bl);
     string key;
     get_deferred_key(txc->deferred_txn->seq, &key);
-    txc->t->set(PREFIX_DEFERRED, key, bl);
+    txc->t->set(PREFIX_DEFERRED, key, bl); // this key is marked as PREFIX_DEFERRED
   }
 
-  _txc_finalize_kv(txc, txc->t); // finialize the RocksDB transaction t
+  _txc_finalize_kv(txc, txc->t); // finialize the RocksDB transaction t(merge, clean t)
   if (handle)
-    handle->suspend_tp_timeout();
+    handle->suspend_tp_timeout(); // clear heartbeat timer
 
   auto tstart = mono_clock::now();
-  auto bst2 = ceph_clock_now(); // bluestore latency model time stamp 2: RocksDB transaction is prepared
-  dout(1) << __func__ << " ###01 delay of preparing RocksDB t = " << bst2 - bst1 << dendl;
+
   // codel: blocking the current thread
   //if(cct->_conf->enable_codel && throttle.get_should_block()) {
   if (cct->_conf->enable_codel)
@@ -14028,21 +14104,14 @@ int BlueStore::queue_transactions(
   } // enable_throttle end
 
   auto tend = mono_clock::now();
-  auto bst3 = ceph_clock_now(); // bluestore latency model time stamp 3: right after CoDel and Throttle
-  dout(1) << __func__ << " ###02 delay of blocking/throttling = " << bst3 - bst2 << dendl;
   if (handle)
     handle->reset_tp_timeout();
 
   logger->inc(l_bluestore_txc);
 
-  //txc->time_created = bs_start;
-  // execute (start)
-  //dout(0)<<"txc->state="<<txc->state<<dendl;
   // state machine
   _txc_state_proc(txc);
   //dout(10) << "###state2="<<txc->state<<dendl; // should be 3, STATE_KV_QUEUED
-  auto bst4 = ceph_clock_now(); // bluestore latency model time stamp 4: right after _txc_state_proc(txc) for 1st time
-  dout(1) << __func__ << " ###03 delay of _txc_state_proc(aios are processed in aio_thread) = " << bst4 - bst3 << dendl;
   // we're immediately readable (unlike FileStore)
   for (auto c : on_applied_sync)
   {
@@ -14703,6 +14772,8 @@ void BlueStore::_do_write_small(
             else
             {
               // simple_write: add ioc to pending queue
+              //dout(0)<<"### aio_write 1"<<dendl;
+              //txc->time_aioq_in = ceph_clock_now();
               b->get_blob().map_bl(
                   b_off, bl,
                   [&](uint64_t offset, bufferlist &t) {
@@ -15384,6 +15455,8 @@ int BlueStore::_do_alloc_write(
       }
       else
       {
+        //dout(0)<<"### aio_write 2"<<dendl;
+        //txc->time_aioq_in = ceph_clock_now();
         b->get_blob().map_bl(
             b_off, *l,
             [&](uint64_t offset, bufferlist &t) {

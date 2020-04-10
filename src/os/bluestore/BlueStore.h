@@ -72,10 +72,12 @@ enum {
   l_bluestore_kv_commit_lat,
   l_bluestore_kv_sync_lat,
   l_bluestore_kv_final_lat,
-  l_bluestore_deferred_writes_lat, // latency for deferred writes
-  l_bluestore_simple_writes_lat, // latency for simple writes
-  l_bluestore_kvq_lat, // the average time from queued in kv_queue till commit finished
-  l_bluestore_aio_lat,
+  l_bluestore_simple_writes_lat, // latency for simple writes v
+  l_bluestore_deferred_writes_lat, // latency for deferred writes v
+  l_bluestore_kvq_lat, // the average time from queued in kv_queue till commit finished v
+  l_bluestore_kv_queue_time, // latency in kv_queue
+  l_bluestore_aio_lat, // simple write io service time(1 flush + 1 kv commit + 1 aio)
+  l_bluestore_dio_lat, // deferred write io service time(2 flush + 1 kv commit + 1 aio)
   l_bluestore_state_prepare_lat,
   l_bluestore_state_aio_wait_lat,
   l_bluestore_state_io_done_lat,
@@ -1554,15 +1556,33 @@ public:
     utime_t start;
     utime_t last_stamp;
 
-    utime_t time_deferred_writes_begin; // beginning time for deferred writes
-    utime_t time_deferred_writes_end; // ending time for deferred writes
-    utime_t time_simple_writes_begin; // time when aio is submitted for simple writes
-    utime_t time_simple_writes_end; // time when aio is done(calling state machine again)
-    utime_t time_kvq_in; // time when txc is pushed into kv_queue
-    utime_t time_kvq_out; // time when txc is swapped out from kv_queue
-    utime_t time_measure_end; // end time for codel measurement
-    utime_t aio_latency; // store the aio latency 
-    utime_t aio_dio_latency; // store both aio and dio latencies
+    
+  
+    
+    
+    utime_t time_kvq_in; // time when txc is pushed into kv_queue (v)
+    utime_t time_kvq_out; // time when txc is swapped out from kv_queue (v)
+    //utime_t time_aioq_in; // time when txc->ioc is added to pending_aios queue
+    //utime_t time_aioq_out; // time when txc->ioc is moved from pending_aios to running_aios to submit
+    
+    // simple writes latencies
+    utime_t aio_last_timestamp; // used to track the aio(time point) (v)
+    utime_t aio_latency; // store the aio latency(without queueing time and waiting time)  (v)
+    utime_t time_simple_writes_begin; // time when aio is submitted for simple writes (v)
+    utime_t time_simple_writes_end; // time when aio is done(calling state machine again) (v)
+
+    // deferred wirtes latencies 
+    utime_t dio_last_timestamp; // used to track the dio(time point) (v)
+    utime_t dio_deferred_batch_last_timestamp; // this is only for deferred_batch txc (v)
+    utime_t dio_latency; // store the deferred writes latency(without queueing time and waiting time) (v)
+    utime_t time_deferred_writes_begin; // beginning time for deferred writes (v)
+    utime_t time_deferred_writes_end; // ending time for deferred writes (v)
+    
+    //utime_t dio_aio_latency; // store aio processing latency for deferred writes 
+    //utime_t dio_total_latency; // store total dio latency(including queueing and waiting time) 
+    //utime_t dio_io_submit;  //>>> aio submit for deferred io
+    //utime_t dio_io_finish;  //<<< aio finish for deferred io
+    //utime_t aio_dio_latency; // store both aio and dio latencies
     //std::chrono::time_point<mono_clock> time_kvq_in1;
     //std::chrono::time_point<mono_clock> time_kvq_out1; 
     //std::chrono::time_point<mono_clock> time_commit_done1;
@@ -1765,9 +1785,12 @@ public:
     // these vectors are for latency model in BlueStore
     vector<double> kv_sync_lat_vec; // flush + kv_commit
     vector<double> kvq_lat_vec; // kv_queue_lat + kv_sync_lat
-    vector<double> aio_lat_vec; // aio_latency
-    //kvq+aio lat = total time spent in BlueStore for simple write 
+    vector<double> bluestore_lat_vec; //bluestore latency vector(from state machine begining to the end)
+    vector<double> bluestore_simple_writes_lat_vec; //bluestore simple_writes latency vector
+    vector<double> bluestore_deferred_writes_lat_vec; //bluestore deferred_writes latency vector
     vector<double> total_bluestore_simple_write_lat_vec;
+    vector<double> bluestore_simple_service_lat_vec; // simple write service time(no queueing and waiting)
+    vector<double> bluestore_deferred_service_lat_vec; // deferred write service time(no queueing and waiting)
     vector<uint64_t> txc_bytes_vec; // store txc->bytes
 
     // these vectors are for CoDel experiments
@@ -1932,6 +1955,8 @@ public:
       &TransContext::deferred_queue_item> > deferred_queue_t;
 
   struct DeferredBatch final : public AioContext {
+    //utime_t defbatch_dio_last_timestamp;
+    //utime_t defbatch_dio_latency;
     OpSequencer *osr;
     struct deferred_io {
       bufferlist bl;    ///< data

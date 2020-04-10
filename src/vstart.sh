@@ -697,7 +697,7 @@ EOF
 	bluestore_max_alloc_size = 0
 	bluestore_prefer_deferred_size = 0
 	bluestore_prefer_deferred_size_hdd = 0
-        bluestore_prefer_deferred_size_ssd = 0"
+        bluestore_prefer_deferred_size_ssd = 16384"
         fi
     fi
     wconf <<EOF
