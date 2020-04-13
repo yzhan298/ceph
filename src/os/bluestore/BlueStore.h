@@ -78,6 +78,7 @@ enum {
   l_bluestore_kv_queue_time, // latency in kv_queue
   l_bluestore_aio_lat, // simple write io service time(1 flush + 1 kv commit + 1 aio)
   l_bluestore_dio_lat, // deferred write io service time(2 flush + 1 kv commit + 1 aio)
+  l_bluestore_deferred_total_lat, // total lat for deferred writes from STATE_KV_DONE to STATE_FINISHING
   l_bluestore_state_prepare_lat,
   l_bluestore_state_aio_wait_lat,
   l_bluestore_state_io_done_lat,
@@ -1562,22 +1563,21 @@ public:
     
     utime_t time_kvq_in; // time when txc is pushed into kv_queue (v)
     utime_t time_kvq_out; // time when txc is swapped out from kv_queue (v)
-    //utime_t time_aioq_in; // time when txc->ioc is added to pending_aios queue
     //utime_t time_aioq_out; // time when txc->ioc is moved from pending_aios to running_aios to submit
     
-    // simple writes latencies
+    // simple writes latencies (from STATE_PREPARE to STATE_KV_DONE)
     utime_t aio_last_timestamp; // used to track the aio(time point) (v)
     utime_t aio_latency; // store the aio latency(without queueing time and waiting time)  (v)
     utime_t time_simple_writes_begin; // time when aio is submitted for simple writes (v)
     utime_t time_simple_writes_end; // time when aio is done(calling state machine again) (v)
 
-    // deferred wirtes latencies 
+    // deferred wirtes latencies (from STATE_PREPARE to STATE_KV_DONE) 
     utime_t dio_last_timestamp; // used to track the dio(time point) (v)
     utime_t dio_deferred_batch_last_timestamp; // this is only for deferred_batch txc (v)
     utime_t dio_latency; // store the deferred writes latency(without queueing time and waiting time) (v)
     utime_t time_deferred_writes_begin; // beginning time for deferred writes (v)
     utime_t time_deferred_writes_end; // ending time for deferred writes (v)
-    
+
     //utime_t dio_aio_latency; // store aio processing latency for deferred writes 
     //utime_t dio_total_latency; // store total dio latency(including queueing and waiting time) 
     //utime_t dio_io_submit;  //>>> aio submit for deferred io

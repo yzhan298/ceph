@@ -693,11 +693,11 @@ EOF
 	bdev_block_size = 4096
 	bluestore_min_alloc_size = 0
 	bluestore_min_alloc_size_hdd = 65536
-	bluestore_min_alloc_size_ssd =  16384
+	bluestore_min_alloc_size_ssd =  4096
 	bluestore_max_alloc_size = 0
 	bluestore_prefer_deferred_size = 0
 	bluestore_prefer_deferred_size_hdd = 0
-        bluestore_prefer_deferred_size_ssd = 16384"
+        bluestore_prefer_deferred_size_ssd = 0"
         fi
     fi
     wconf <<EOF

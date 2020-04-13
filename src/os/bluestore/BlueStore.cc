@@ -5154,6 +5154,8 @@ void BlueStore::_init_logger()
                  "the average time for aio latency(1 flush + 1 kv commit + 1 aio)");
   b.add_time_avg(l_bluestore_dio_lat, "bluestore_dio_lat",
                  "the average time for deferred io service latency(2 flush + 1 kv commit + 1 aio)");
+  b.add_time_avg(l_bluestore_deferred_total_lat, "bluestore_deferred_total_lat",
+                 "total lat for deferred writes from STATE_KV_DONE to STATE_FINISHING");
   b.add_time_avg(l_bluestore_state_prepare_lat, "state_prepare_lat",
                  "Average prepare state latency");
   b.add_time_avg(l_bluestore_state_aio_wait_lat, "state_aio_wait_lat",
@@ -12516,6 +12518,7 @@ void BlueStore::_txc_state_proc(TransContext *txc)
         // collecting simple writes path latency in bluestore
         txc->time_simple_writes_end = ceph_clock_now();
         auto bs_simple_writes_lat = txc->time_simple_writes_end - txc->time_simple_writes_begin;
+        //dout(0)<<"### simple write, lat="<<bs_simple_writes_lat<<dendl;
         logger->tinc(l_bluestore_simple_writes_lat, bs_simple_writes_lat);
         throttle.bluestore_simple_writes_lat_vec.push_back((double)bs_simple_writes_lat.to_nsec() / 1000000000);
         throttle.bluestore_lat_vec.push_back((double)bs_simple_writes_lat.to_nsec() / 1000000000);
@@ -12827,6 +12830,11 @@ void BlueStore::_txc_finish(TransContext *txc)
         }
         break;
       }
+      if(txc->time_deferred_writes_begin != utime_t{0, 0}) {
+        auto bs_simple_writes_lat = ceph_clock_now() - txc->time_deferred_writes_begin;
+        logger->tinc(l_bluestore_deferred_total_lat, bs_simple_writes_lat);
+      }
+      
       /*txc->time_deferred_writes_end = ceph_clock_now();
       txc->time_simple_writes_end = txc->time_deferred_writes_end;
       if(txc->time_deferred_writes_begin != utime_t{0, 0}) {
@@ -14018,7 +14026,6 @@ int BlueStore::queue_transactions(
       tls, &on_applied, &on_commit, &on_applied_sync); // move transaction.on_commit to list on_commit
 
   auto start = mono_clock::now();
-
   Collection *c = static_cast<Collection *>(ch.get()); // get raw pointer to collection
   OpSequencer *osr = c->osr.get();                     // get raw pointer to collection
   dout(10) << __func__ << " ch " << c << " " << c->cid << dendl;
@@ -14055,7 +14062,6 @@ int BlueStore::queue_transactions(
     handle->suspend_tp_timeout(); // clear heartbeat timer
 
   auto tstart = mono_clock::now();
-
   // codel: blocking the current thread
   //if(cct->_conf->enable_codel && throttle.get_should_block()) {
   if (cct->_conf->enable_codel)

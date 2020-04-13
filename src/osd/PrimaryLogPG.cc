@@ -2534,7 +2534,7 @@ void PrimaryLogPG::do_op(OpRequestRef &op)
 
   dout(25) << __func__ << " oi " << obc->obs.oi << dendl;
 
-  OpContext *ctx = new OpContext(op, m->get_reqid(), &m->ops, obc, this);
+  OpContext *ctx = new OpContext(op, m->get_reqid(), &m->ops, obc, this); // ops for same object
 
   if (m->has_flag(CEPH_OSD_FLAG_SKIPRWLOCKS))
   {
