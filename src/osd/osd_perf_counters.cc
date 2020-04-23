@@ -125,7 +125,15 @@ PerfCounters *build_osd_logger(CephContext *cct) {
   osd_plb.add_u64_counter(l_osd_op_queue_size, "op_queue_size", "number of requests(all clients) in shardedopwq");
   osd_plb.add_time_avg(l_osd_op_queueing_time, "osd_op_queueing_time",
     "average queueing time for an op in sharded_opq");
-  
+  osd_plb.add_time_avg(l_osd_get_attr_lat, "osd_get_attr_lat", "latency of getting attr");
+  osd_plb.add_time_avg(l_osd_find_obc_lat, "osd_find_obc_lat", "latency of getting object context");
+  osd_plb.add_time_avg(l_osd_do_op_lat, "osd_do_op_lat", "latency of do_op function");
+  osd_plb.add_time_avg(l_osd_do_request_lat, "osd_do_request_lat", "latency of do_request function");
+  osd_plb.add_time_avg(l_osd_pre_trans_lat, "osd_pre_trans_lat", "latency of prepare_transaction function");
+  osd_plb.add_time_avg(l_osd_exec_ctx_lat, "osd_exec_ctx_lat", "latency of execute_ctx function");
+  osd_plb.add_time_avg(l_osd_issue_repop_lat, "osd_issue_repop_lat", "latency of issue_repop function");
+  osd_plb.add_time_avg(l_osd_eval_repop_lat, "osd_eval_repop_lat", "latency of eval_repop function");
+  osd_plb.add_time_avg(l_osd_on_committed_lat, "osd_on_committed_lat", "latency of txc in om_committed function");
 
   osd_plb.add_u64_counter(
     l_osd_sop, "subop", "Suboperations");

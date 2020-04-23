@@ -1948,8 +1948,17 @@ void PrimaryLogPG::do_request(
       {
         osd->reply_op_error(op, -EOPNOTSUPP);
         return;
+      }else {
+        utime_t before_do_op_now = ceph_clock_now();
+        do_op(op);
+        auto osd_do_op_lat = ceph_clock_now() - before_do_op_now;
+        osd->logger->tinc(l_osd_do_op_lat, osd_do_op_lat);
       }
-      do_op(op);
+      //utime_t before_do_op_now = ceph_clock_now();
+      //auto start_time = mono_clock::now();
+      //do_op(op);
+      //auto osd_do_op_lat = ceph_clock_now() - before_do_op_now;
+      //osd->logger->tinc(l_osd_do_op_lat, osd_do_op_lat);
       break;
     case CEPH_MSG_OSD_BACKOFF:
       // object-level backoff acks handled in osdop context
@@ -2036,6 +2045,7 @@ void PrimaryLogPG::do_op(OpRequestRef &op)
   FUNCTRACE(cct);
   // NOTE: take a non-const pointer here; we must be careful not to
   // change anything that will break other reads on m (operator<<).
+  //auto ts1 = ceph_clock_now();
   MOSDOp *m = static_cast<MOSDOp *>(op->get_nonconst_req());
   ceph_assert(m->get_type() == CEPH_MSG_OSD_OP);
   if (m->finish_decode())
@@ -2131,6 +2141,7 @@ void PrimaryLogPG::do_op(OpRequestRef &op)
 
   if (op->includes_pg_op())
   {
+    //dout(0)<<"### 1"<<dendl; // no call
     return do_pg_op(op);
   }
 
@@ -2359,7 +2370,7 @@ void PrimaryLogPG::do_op(OpRequestRef &op)
   ObjectContextRef obc;
   bool can_create = op->may_write();
   hobject_t missing_oid;
-
+  //dout(0) << "### 2 can_create="<<can_create<<dendl; // more 1 than 0 in my test
   // kludge around the fact that LIST_SNAPS sets CEPH_SNAPDIR for LIST_SNAPS
   const hobject_t &oid =
       m->get_snapid() == CEPH_SNAPDIR ? head : m->get_hobj();
@@ -2395,12 +2406,14 @@ void PrimaryLogPG::do_op(OpRequestRef &op)
   {
     return;
   }
-
+  utime_t before_find_obc_now = ceph_clock_now();
   int r = find_object_context(
       oid, &obc, can_create,
       m->has_flag(CEPH_OSD_FLAG_MAP_SNAP_CLONE),
       &missing_oid);
-
+  auto osd_find_obc_lat = ceph_clock_now() - before_find_obc_now;
+  osd->logger->tinc(l_osd_find_obc_lat, osd_find_obc_lat);
+  //dout(0)<<"### 3 find_obc_time="<<ts3-ts2<<dendl;
   // LIST_SNAPS needs the ssc too
   if (obc &&
       m->get_snapid() == CEPH_SNAPDIR &&
@@ -2611,8 +2624,12 @@ void PrimaryLogPG::do_op(OpRequestRef &op)
   }
 
   op->mark_started();
-
+  //auto ts4 = ceph_clock_now();
+  //dout(0)<<"### 4 do_op lat="<<ts4-ts1<<dendl;
+  utime_t before_exec_ctx_now = ceph_clock_now();
   execute_ctx(ctx);
+  auto osd_exec_ctx_lat = ceph_clock_now() - before_exec_ctx_now;
+  osd->logger->tinc(l_osd_exec_ctx_lat, osd_exec_ctx_lat);
   utime_t prepare_latency = ceph_clock_now();
   prepare_latency -= op->get_dequeued_time();
   osd->logger->tinc(l_osd_op_prepare_lat, prepare_latency);
@@ -4366,8 +4383,8 @@ void PrimaryLogPG::execute_ctx(OpContext *ctx)
   dout(10) << __func__ << " " << ctx << dendl;
   ctx->reset_obs(ctx->obc);
   ctx->update_log_only = false; // reset in case finish_copyfrom() is re-running execute_ctx
-  OpRequestRef op = ctx->op;
-  auto m = op->get_req<MOSDOp>();
+  OpRequestRef op = ctx->op; // get op
+  auto m = op->get_req<MOSDOp>(); // get MOSDOp
   ObjectContextRef obc = ctx->obc;
   const hobject_t &soid = obc->obs.oi.soid;
 
@@ -4429,9 +4446,10 @@ void PrimaryLogPG::execute_ctx(OpContext *ctx)
     tracepoint(osd, prepare_tx_enter, reqid.name._type,
                reqid.name._num, reqid.tid, reqid.inc);
   }
-
+  utime_t before_pre_trans_now = ceph_clock_now();
   int result = prepare_transaction(ctx);
-
+  auto osd_pre_trans_lat = ceph_clock_now() - before_pre_trans_now;
+  osd->logger->tinc(l_osd_pre_trans_lat, osd_pre_trans_lat);
   {
 #ifdef WITH_LTTNG
     osd_reqid_t reqid = ctx->op->get_reqid();
@@ -4446,6 +4464,7 @@ void PrimaryLogPG::execute_ctx(OpContext *ctx)
     // come back later.
     if (pending_async_reads)
     {
+      //dout(0)<<"###1"<<dendl; // 0
       ceph_assert(pool.info.is_erasure());
       in_progress_async_reads.push_back(make_pair(op, ctx));
       ctx->start_async_reads(this);
@@ -4455,6 +4474,7 @@ void PrimaryLogPG::execute_ctx(OpContext *ctx)
 
   if (result == -EAGAIN)
   {
+    //dout(0)<<"###2"<<dendl; // 0
     // clean up after the ctx
     close_op_ctx(ctx);
     return;
@@ -4497,6 +4517,7 @@ void PrimaryLogPG::execute_ctx(OpContext *ctx)
   // read or error?
   if ((ctx->op_t->empty() || result < 0) && !ctx->update_log_only)
   {
+    //dout(0)<<"###3"<<dendl; // 78
     // finish side-effects
     if (result >= 0)
       do_osd_op_effects(ctx, m->get_connection());
@@ -4550,6 +4571,7 @@ void PrimaryLogPG::execute_ctx(OpContext *ctx)
 
     if (result == -ENOENT)
     {
+      //dout(0)<<"###4"<<dendl; // 2
       reply->set_enoent_reply_versions(info.last_update,
                                        info.last_user_version);
     }
@@ -4560,14 +4582,38 @@ void PrimaryLogPG::execute_ctx(OpContext *ctx)
     close_op_ctx(ctx);
     return;
   }
+  //if (ctx->op)
+  //log_op_stats(*ctx->op, ctx->bytes_written, ctx->bytes_read); // 0.00032
 
+  dout(10)<<"### 1, op="<<ctx->op<<", reqid="<<ctx->reqid<<", at_version="<<ctx->at_version
+  <<", num_read="<<ctx->num_read<<", num_write="<<ctx->num_write
+  <<", op_w_lat="<< ceph_clock_now() - ((*ctx->op).get_req<MOSDOp>())->get_recv_stamp()
+  <<"recvtime="<<((*ctx->op).get_req<MOSDOp>())->get_recv_stamp()<<", now="<<ceph_clock_now()<<dendl;
   // no need to capture PG ref, repop cancel will handle that
   // Can capture the ctx by pointer, it's owned by the repop
+  // inout arguments: rvalue reference(temporary object)
+  // add ctx to on_committed 
+  ctx->op->last_timestamp = ceph_clock_now();
   ctx->register_on_commit(
       [m, ctx, this]() {
-        if (ctx->op)
-          log_op_stats(*ctx->op, ctx->bytes_written, ctx->bytes_read);
-
+        // lambda function, called in eval_repop
+        // copy-capture: m, ctx; reference-capture this
+        // so m and pointer ctx is by-copy
+        // all members of OpContext is by-reference
+        // note: auto m = op->get_req<MOSDOp>(); OpContext *ctx
+        if (ctx->op){ // ctx->op is OpRequestRef, by-reference
+          //dout(0)<<"### 3 count, ctx->op="<<ctx->op<<dendl;
+          // in eval_repop, the ctx will be removed from on_committed
+          if(ctx->op->last_timestamp) {
+            auto osd_on_committed_lat = ceph_clock_now() - ctx->op->last_timestamp;
+            osd->logger->tinc(l_osd_on_committed_lat, osd_on_committed_lat);
+          }
+          dout(10)<<"### 2, op="<<ctx->op<<", reqid="<<ctx->reqid<<", at_version="<<ctx->at_version
+          <<", num_read="<<ctx->num_read<<", num_write="<<ctx->num_write
+          <<", op_w_lat="<< ceph_clock_now() - ((*ctx->op).get_req<MOSDOp>())->get_recv_stamp()
+          <<"recvtime="<<((*ctx->op).get_req<MOSDOp>())->get_recv_stamp()<<", now="<<ceph_clock_now()<<dendl;
+          log_op_stats(*ctx->op, ctx->bytes_written, ctx->bytes_read); // 0.0017
+        }
         if (m && !ctx->sent_reply)
         {
           MOSDOpReply *reply = ctx->reply;
@@ -4578,6 +4624,7 @@ void PrimaryLogPG::execute_ctx(OpContext *ctx)
           ctx->sent_reply = true;
           ctx->op->mark_commit_sent();
         }
+        return ctx;
       });
   ctx->register_on_success(
       [ctx, this]() {
@@ -4594,9 +4641,14 @@ void PrimaryLogPG::execute_ctx(OpContext *ctx)
   ceph_tid_t rep_tid = osd->get_tid();
 
   RepGather *repop = new_repop(ctx, obc, rep_tid);
-
-  issue_repop(repop, ctx);
+  utime_t before_issue_repop_now = ceph_clock_now();
+  issue_repop(repop, ctx); // call submit_transaction --> bluestore queue_transasctions
+  utime_t osd_issue_repop_lat = ceph_clock_now() - before_issue_repop_now;
+  osd->logger->tinc(l_osd_issue_repop_lat, osd_issue_repop_lat);
+  utime_t before_eval_repop_now = ceph_clock_now();
   eval_repop(repop);
+  utime_t osd_eval_repop_lat = ceph_clock_now() - before_eval_repop_now;
+  osd->logger->tinc(l_osd_eval_repop_lat, osd_eval_repop_lat);
   repop->put();
 }
 
@@ -11924,6 +11976,11 @@ void PrimaryLogPG::eval_repop(RepGather *repop)
          p != repop->on_committed.end();
          repop->on_committed.erase(p++))
     {
+        /*dout(0)<<"### 3, op="<<p->op<<", reqid="<<ctx->reqid<<", at_version="<<ctx->at_version
+          <<", num_read="<<ctx->num_read<<", num_write="<<ctx->num_write
+          <<", op_w_lat="<< ceph_clock_now() - ((*ctx->op).get_req<MOSDOp>())->get_recv_stamp()
+          <<"recvtime="<<((*ctx->op).get_req<MOSDOp>())->get_recv_stamp()<<", now="<<ceph_clock_now()<<dendl;*/
+      //dout(0)<<"### 1.5 now="<<ceph_clock_now()<<dendl; 
       (*p)();
     }
     // send dup commits, in order
@@ -11971,7 +12028,7 @@ void PrimaryLogPG::eval_repop(RepGather *repop)
 void PrimaryLogPG::issue_repop(RepGather *repop, OpContext *ctx)
 {
   FUNCTRACE(cct);
-  const hobject_t &soid = ctx->obs->oi.soid;
+  const hobject_t &soid = ctx->obs->oi.soid; 
   dout(7) << "issue_repop rep_tid " << repop->rep_tid
           << " o " << soid
           << dendl;
@@ -11987,7 +12044,13 @@ void PrimaryLogPG::issue_repop(RepGather *repop, OpContext *ctx)
   {
     ctx->op_t->add_obc(ctx->head_obc);
   }
-
+  /*
+  C_OSD_RepopCommit(PrimaryLogPG *pg, PrimaryLogPG::RepGather *repop)
+      : pg(pg), repop(repop) {}
+  void finish(int) override
+  {
+    pg->repop_all_committed(repop.get());
+  }*/
   Context *on_all_commit = new C_OSD_RepopCommit(this, repop);
   if (!(ctx->log.empty()))
   {
@@ -12025,7 +12088,7 @@ PrimaryLogPG::RepGather *PrimaryLogPG::new_repop(
   if (ctx->op)
     dout(10) << "new_repop rep_tid " << rep_tid << " on " << *ctx->op->get_req() << dendl;
   else
-    dout(10) << "new_repop rep_tid " << rep_tid << " (no op)" << dendl;
+    dout(10) << "ew_repop rep_tid " << rep_tid << " (no op)" << dendl; // not called in my test
 
   RepGather *repop = new RepGather(
       ctx, rep_tid, info.last_complete);
@@ -12438,30 +12501,35 @@ ObjectContextRef PrimaryLogPG::get_object_context(
       (it_objects != recovery_state.get_pg_log().get_log().objects.end() &&
        it_objects->second->op ==
            pg_log_entry_t::LOST_REVERT));
-  ObjectContextRef obc = object_contexts.lookup(soid);
+  ObjectContextRef obc = object_contexts.lookup(soid); // check onode cache
   osd->logger->inc(l_osd_object_ctx_cache_total);
   if (obc)
   {
     osd->logger->inc(l_osd_object_ctx_cache_hit);
-    dout(10) << __func__ << ": found obc in cache: " << obc
-             << dendl;
+    dout(10) << __func__ << ": found obc in cache: " << obc << dendl; // more hit here 
   }
   else
   {
-    dout(10) << __func__ << ": obc NOT found in cache: " << soid << dendl;
+    dout(10) << __func__ << ": obc NOT found in cache: " << soid << dendl; // less miss here
     // check disk
     bufferlist bv;
     if (attrs)
     {
+      //dout(0)<<"### 1 attr exists"<<dendl; // never called in my test
       auto it_oi = attrs->find(OI_ATTR);
       ceph_assert(it_oi != attrs->end());
       bv = it_oi->second;
     }
     else
     {
+      //dout(0)<<"### 2 attr NOT exists 1"<<dendl;
+      utime_t osd_before_get_attr_now = ceph_clock_now();
       int r = pgbackend->objects_get_attr(soid, OI_ATTR, &bv);
+      //dout(0)<<"### 3 attr NOT exists 2"<<dendl;
+      auto osd_db_get_attr_lat = ceph_clock_now() - osd_before_get_attr_now;
+      osd->logger->tinc(l_osd_get_attr_lat, osd_db_get_attr_lat);
       if (r < 0)
-      {
+      { // not found 
         if (!can_create)
         {
           dout(10) << __func__ << ": no obc for soid "
@@ -12608,7 +12676,10 @@ int PrimaryLogPG::find_object_context(const hobject_t &oid,
   // we want a snap
 
   hobject_t head = oid.get_head();
+  utime_t get_snap_ctx_begin = ceph_clock_now();
   SnapSetContext *ssc = get_snapset_context(oid, can_create);
+  utime_t get_snap_ctx_end = ceph_clock_now();
+  
   if (!ssc || !(ssc->exists || can_create))
   {
     dout(20) << __func__ << " " << oid << " no snapset" << dendl;

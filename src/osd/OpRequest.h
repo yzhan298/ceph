@@ -108,7 +108,8 @@ public:
   }
   utime_t enqueued_time; // sharded_opqueue enqueue time
   utime_t dequeued_time; // sharded_opqueue dequeue time
-  utime_t leave_osd_time; // time of laving osd layer
+  //utime_t leave_osd_time; // time of laving osd layer
+  utime_t last_timestamp;
   bool check_send_map = true; ///< true until we check if sender needs a map
   epoch_t sent_epoch = 0;     ///< client's map epoch
   epoch_t min_epoch = 0;      ///< min epoch needed to handle this msg

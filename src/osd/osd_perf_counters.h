@@ -39,6 +39,15 @@ enum {
   
   l_osd_op_queue_size,
   l_osd_op_queueing_time,
+  l_osd_get_attr_lat,
+  l_osd_find_obc_lat,
+  l_osd_do_op_lat,
+  l_osd_do_request_lat,
+  l_osd_pre_trans_lat,
+  l_osd_exec_ctx_lat,
+  l_osd_issue_repop_lat,
+  l_osd_eval_repop_lat,
+  l_osd_on_committed_lat,
 
   l_osd_sop,
   l_osd_sop_inb,

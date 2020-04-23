@@ -72,13 +72,15 @@ enum {
   l_bluestore_kv_commit_lat,
   l_bluestore_kv_sync_lat,
   l_bluestore_kv_final_lat,
-  l_bluestore_simple_writes_lat, // latency for simple writes v
-  l_bluestore_deferred_writes_lat, // latency for deferred writes v
-  l_bluestore_kvq_lat, // the average time from queued in kv_queue till commit finished v
+  l_bluestore_simple_writes_lat, // latency for simple writes 
+  l_bluestore_deferred_writes_lat, // latency for deferred writes 
+  l_bluestore_writes_lat, // combine simple + deferred
+  l_bluestore_kvq_lat, // the average time from queued in kv_queue till commit finished 
   l_bluestore_kv_queue_time, // latency in kv_queue
-  l_bluestore_aio_lat, // simple write io service time(1 flush + 1 kv commit + 1 aio)
-  l_bluestore_dio_lat, // deferred write io service time(2 flush + 1 kv commit + 1 aio)
+  l_bluestore_simple_service_lat, // simple write io service time(1 flush + 1 kv commit + 1 aio)
+  l_bluestore_deferred_service_lat, // deferred write io service time(2 flush + 1 kv commit + 1 aio)
   l_bluestore_deferred_total_lat, // total lat for deferred writes from STATE_KV_DONE to STATE_FINISHING
+  //l_bluestore_db_get_onode_lat, // latency of getting onode from db
   l_bluestore_state_prepare_lat,
   l_bluestore_state_aio_wait_lat,
   l_bluestore_state_io_done_lat,

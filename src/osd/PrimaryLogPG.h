@@ -769,8 +769,8 @@ public:
 
     ObcLockManager lock_manager;
 
-    list<std::function<void()>> on_committed;
-    list<std::function<void()>> on_success;
+    list<std::function<void()>> on_committed; // added in execute_ctx, removed in eval_repop
+    list<std::function<void()>> on_success; // added in execute_ctx, removed in eval_repop
     list<std::function<void()>> on_finish;
     
     RepGather(

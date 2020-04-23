@@ -507,14 +507,16 @@ void ReplicatedBackend::submit_transaction(
     osd_reqid_t reqid,
     OpRequestRef orig_op)
 {
+  //dout(0)<<"###1 t="<<ceph_clock_now()<<dendl;
   parent->apply_stats(
       soid,
       delta_stats);
-  //dout(0)<<"###1 called"<<dendl;
+  //dout(0)<<"###2 t="<<ceph_clock_now()<<dendl;
   vector<pg_log_entry_t> log_entries(_log_entries);
   ObjectStore::Transaction op_t;
   PGTransactionUPtr t(std::move(_t));
   set<hobject_t> added, removed;
+  //dout(0)<<"###3 t="<<ceph_clock_now()<<dendl;
   generate_transaction(
       t,
       coll,
@@ -523,6 +525,7 @@ void ReplicatedBackend::submit_transaction(
       &added,
       &removed,
       get_osdmap()->require_osd_release);
+  //dout(0)<<"###4 t="<<ceph_clock_now()<<dendl;
   ceph_assert(added.size() <= 1);
   ceph_assert(removed.size() <= 1);
 
@@ -569,7 +572,7 @@ void ReplicatedBackend::submit_transaction(
 
   op_t.register_on_commit(
       parent->bless_context(
-          new C_OSD_OnOpCommit(this, &op)));
+          new C_OSD_OnOpCommit(this, &op))); // regist callback functions
 
   vector<ObjectStore::Transaction> tls;
   tls.push_back(std::move(op_t));

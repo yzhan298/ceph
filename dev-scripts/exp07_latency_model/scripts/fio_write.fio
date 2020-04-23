@@ -3,11 +3,11 @@ ioengine=rbd
 clientname=admin
 pool=mybench
 rbdname=image1
-rw=write
+rw=randwrite
 bs=4096
 ;size=83886080000
 time_based=1
-runtime=60
+runtime=10
 direct = 1
 ;write_iops_log
 

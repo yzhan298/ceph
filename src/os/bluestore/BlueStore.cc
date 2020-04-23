@@ -5146,13 +5146,15 @@ void BlueStore::_init_logger()
                  "avg latency for simple writes in bluestore");
   b.add_time_avg(l_bluestore_deferred_writes_lat, "bluestore_deferred_writes_lat",
                  "avg latency for deferred writes in bluestore");
+  b.add_time_avg(l_bluestore_writes_lat, "bluestore_writes_lat",
+                 "avg latency for deferred+simple writes in bluestore");
   b.add_time_avg(l_bluestore_kvq_lat, "bluestore_kvq_lat",
                  "the average time from queued in kv_queue till commit finished");
   b.add_time_avg(l_bluestore_kv_queue_time, "bluestore_kv_queue_time",
                  "the average time spent in kv_queue");
-  b.add_time_avg(l_bluestore_aio_lat, "bluestore_aio_lat",
+  b.add_time_avg(l_bluestore_simple_service_lat, "bluestore_simple_service_lat",
                  "the average time for aio latency(1 flush + 1 kv commit + 1 aio)");
-  b.add_time_avg(l_bluestore_dio_lat, "bluestore_dio_lat",
+  b.add_time_avg(l_bluestore_deferred_service_lat, "bluestore_deferred_service_lat",
                  "the average time for deferred io service latency(2 flush + 1 kv commit + 1 aio)");
   b.add_time_avg(l_bluestore_deferred_total_lat, "bluestore_deferred_total_lat",
                  "total lat for deferred writes from STATE_KV_DONE to STATE_FINISHING");
@@ -12398,14 +12400,7 @@ void BlueStore::_txc_state_proc(TransContext *txc)
       // ** fall-thru **
 
     case TransContext::STATE_AIO_WAIT:
-    {
-      //txc->time_aio_done = ceph_clock_now();
-      // If it's deferred write, the state should be 0 here
-      // let's change it aio_dio_latency(do not use it )
-      // if it's aio, then aio_dio_latency != 0(aio is persisted on disk)
-      // if it's dio, then aio_dio_latency == 0
-      //txc->aio_dio_latency += ceph_clock_now() - txc->last_stamp;
-      
+    {      
       // aio_latency-1: add aio time
       if(txc->aio_last_timestamp != utime_t{0,0}) {
         txc->aio_latency += ceph_clock_now() - txc->aio_last_timestamp;
@@ -12428,13 +12423,6 @@ void BlueStore::_txc_state_proc(TransContext *txc)
 
     case TransContext::STATE_IO_DONE:
       ceph_assert(ceph_mutex_is_locked(txc->osr->qlock)); // see _txc_finish_io
-      //txc->aio_latency += ceph_clock_now() - txc->last_stamp;
-
-
-      // if it's aio, the aio is persisted on disk now.
-      // if it's dio, we need to add the WAL to kv_queue. 
-      //txc->aio_dio_latency += ceph_clock_now() - txc->last_stamp;
-      // if it's aio, then had_ios is true; otherwise, it's false
       if (txc->had_ios)
       {
         ++txc->osr->txc_with_unstable_io;
@@ -12511,6 +12499,7 @@ void BlueStore::_txc_state_proc(TransContext *txc)
         txc->time_deferred_writes_end = ceph_clock_now();
         auto bs_deferred_writes_lat = txc->time_deferred_writes_end - txc->time_deferred_writes_begin;
         logger->tinc(l_bluestore_deferred_writes_lat, bs_deferred_writes_lat);
+        logger->tinc(l_bluestore_writes_lat, bs_deferred_writes_lat);
         throttle.bluestore_deferred_writes_lat_vec.push_back((double)bs_deferred_writes_lat.to_nsec() / 1000000000);
         throttle.bluestore_lat_vec.push_back((double)bs_deferred_writes_lat.to_nsec() / 1000000000);
       }
@@ -12520,6 +12509,7 @@ void BlueStore::_txc_state_proc(TransContext *txc)
         auto bs_simple_writes_lat = txc->time_simple_writes_end - txc->time_simple_writes_begin;
         //dout(0)<<"### simple write, lat="<<bs_simple_writes_lat<<dendl;
         logger->tinc(l_bluestore_simple_writes_lat, bs_simple_writes_lat);
+        logger->tinc(l_bluestore_writes_lat, bs_simple_writes_lat);
         throttle.bluestore_simple_writes_lat_vec.push_back((double)bs_simple_writes_lat.to_nsec() / 1000000000);
         throttle.bluestore_lat_vec.push_back((double)bs_simple_writes_lat.to_nsec() / 1000000000);
       }
@@ -12834,23 +12824,6 @@ void BlueStore::_txc_finish(TransContext *txc)
         auto bs_simple_writes_lat = ceph_clock_now() - txc->time_deferred_writes_begin;
         logger->tinc(l_bluestore_deferred_total_lat, bs_simple_writes_lat);
       }
-      
-      /*txc->time_deferred_writes_end = ceph_clock_now();
-      txc->time_simple_writes_end = txc->time_deferred_writes_end;
-      if(txc->time_deferred_writes_begin != utime_t{0, 0}) {
-        // collecting deferred writes path latency in bluestore
-        auto bs_deferred_writes_lat = txc->time_deferred_writes_end - txc->time_deferred_writes_begin;
-        logger->tinc(l_bluestore_deferred_writes_lat, bs_deferred_writes_lat);
-        throttle.bluestore_deferred_writes_lat_vec.push_back((double)bs_deferred_writes_lat.to_nsec() / 1000000000);
-        throttle.bluestore_lat_vec.push_back((double)bs_deferred_writes_lat.to_nsec() / 1000000000);
-      }*/
-      /*if(txc->time_simple_writes_begin != utime_t{0, 0}) {
-        // collecting simple writes path latency in bluestore
-        auto bs_simple_writes_lat = txc->time_simple_writes_end - txc->time_simple_writes_begin;
-        logger->tinc(l_bluestore_simple_writes_lat, bs_simple_writes_lat);
-        throttle.bluestore_simple_writes_lat_vec.push_back((double)bs_simple_writes_lat.to_nsec() / 1000000000);
-        throttle.bluestore_lat_vec.push_back((double)bs_simple_writes_lat.to_nsec() / 1000000000);
-      }*/
       
       osr->q.pop_front();
       releasing_txc.push_back(*txc);
@@ -13327,8 +13300,7 @@ void BlueStore::_kv_sync_thread()
               txc.dio_deferred_batch_last_timestamp = ceph_clock_now();
               // dio_latency-3: add flush() time for deferred txc 
               txc.dio_latency += ceph_clock_now() - txc.dio_deferred_batch_last_timestamp;
-              logger->tinc(l_bluestore_dio_lat, txc.dio_latency); 
-              //dout(0)<<"txc.dio_latency"<<txc.dio_latency<<dendl;
+              logger->tinc(l_bluestore_deferred_service_lat, txc.dio_latency); 
               throttle.bluestore_deferred_service_lat_vec.push_back(txc.dio_latency);
             }
           }
@@ -13472,11 +13444,6 @@ void BlueStore::_kv_sync_thread()
         {
           throttle.count_inc();
           auto cur_queue_delay = codel_after_commit - txc->time_kvq_in; // from queued in kv_q to finish
-          //auto txc_aio_delay = txc->time_aio_done - txc->time_simple_writes_begin; // aio delay for this txc
-          //dout(0)<<"### kv_delay="<<cur_queue_delay<<dendl;
-          // total_lat = aio_lat + kvq+lat
-          //auto total_bluestore_simple_write_lat = cur_queue_delay + txc->aio_latency;
-          //logger->tinc(l_bluestore_aio_lat, txc->aio_latency); 
           logger->tinc(l_bluestore_kvq_lat, cur_queue_delay); // kv queueing latency (from kv_qeueue enqueue to commit finish)
           throttle.kvq_lat_vec.push_back((double)cur_queue_delay.to_nsec() / 1000000000);
           throttle.txc_bytes_vec.push_back(txc->bytes);
@@ -13521,7 +13488,7 @@ void BlueStore::_kv_sync_thread()
 
           // aio_latency-2: add flush and commit latency for txc
            txc->aio_latency += finish_utime - txc->aio_last_timestamp;
-           logger->tinc(l_bluestore_aio_lat, txc->aio_latency); 
+           logger->tinc(l_bluestore_simple_service_lat, txc->aio_latency); 
            throttle.bluestore_simple_service_lat_vec.push_back(txc->aio_latency);
 
           // dio_latency-1: add flush() and commit() latency for txc
@@ -13929,8 +13896,6 @@ void BlueStore::_deferred_aio_finish(OpSequencer *osr)
       for (auto &i : b->txcs)
       {
         TransContext *txc = &i;
-        //txc->dio_io_finish = ceph_clock_now();
-        //txc->dio_aio_latency = txc->dio_io_finish - txc->dio_last_timestamp; // aio latency
         // dio_latency-2: add aio_submit(in kerneldevice) latency 
         txc->dio_latency += ceph_clock_now() - txc->dio_last_timestamp; // dio(without waiting) latency
         throttle.log_state_latency(*txc, logger, l_bluestore_state_deferred_aio_wait_lat);
@@ -14127,12 +14092,10 @@ int BlueStore::queue_transactions(
   {
     if (c->commit_queue)
     {
-      //dout(0)<<"### no finisher"<<dendl; // called
       c->commit_queue->queue(on_applied);
     }
     else
     {
-      //dout(0)<<"### finisher"<<dendl;
       finisher.queue(on_applied); // process in finisher thread
     }
   }

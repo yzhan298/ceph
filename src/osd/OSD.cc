@@ -10619,7 +10619,7 @@ void OSD::enqueue_op(spg_t pg, OpRequestRef &&op, epoch_t epoch)
           unique_ptr<OpQueueItem::OpQueueable>(new PGOpItem(pg, std::move(op))),
           cost, priority, stamp, owner, epoch)); // push_back
   auto opq_size = op_shardedwq.get_size_of_all_shards();
-  //opq_vec.push_back(opq_size);
+  opq_vec.push_back(opq_size);
   logger->set(l_osd_op_queue_size, opq_size);
 }
 
@@ -10684,8 +10684,10 @@ void OSD::dequeue_op(
 
   op->mark_reached_pg();
   op->osd_trace.event("dequeue_op");
-
+  utime_t before_do_request_now = ceph_clock_now();
   pg->do_request(op, handle);
+  auto osd_do_request_lat = ceph_clock_now() - before_do_request_now;
+  logger->tinc(l_osd_do_request_lat, osd_do_request_lat);
 
   // finish
   dout(10) << "dequeue_op " << op << " finish" << dendl;

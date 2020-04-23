@@ -2,8 +2,10 @@
 
 # run rbd bench and collect result
 bs="4096"   #"131072"  # block size 
-totalruntime=10  # seconds
+iotype="write"
 qd=48 # workload queue depth
+iototal="100M"
+iopattern="rand" #rand or seq
 
 # no need to change
 DATA_FILE=dump-lat-analysis.csv  # output file name
@@ -23,18 +25,20 @@ single_dump() {
 	bluestore_simple_service_lat=$(jq ".bluestore.bluestore_aio_lat.avgtime" $dump_state)
 	bluestore_deferred_service_lat=$(jq ".bluestore.bluestore_dio_lat.avgtime" $dump_state)
     
-    printf '%s\n' $bs $totalruntime $qd $osd_op_in_osd_lat $osd_op_queueing_time $bluestore_simple_writes_lat $bluestore_deferred_writes_lat $bluestore_kv_queue_time $bluestore_kv_sync_lat $bluestore_kvq_lat $bluestore_simple_service_lat $bluestore_deferred_service_lat | paste -sd ',' >> ${DATA_FILE} 
+    printf '%s\n' $bs $qd $osd_op_in_osd_lat $osd_op_queueing_time $bluestore_simple_writes_lat $bluestore_deferred_writes_lat $bluestore_kv_queue_time $bluestore_kv_sync_lat $bluestore_kvq_lat $bluestore_simple_service_lat $bluestore_deferred_service_lat | paste -sd ',' >> ${DATA_FILE} 
 }
-printf '%s\n' "bs" "runtime" "qdepth" "osd_lat" "op_queue_lat" "bluestore_simple_writes_lat" "bluestore_deferred_writes_lat" "kv_queue_lat" "bluestore_kv_sync_lat" "bluestore_kvq_lat" "bluestore_simple_service_lat" "bluestore_deferred_service_lat" |  paste -sd ',' > ${DATA_FILE} 
+printf '%s\n' "bs" "qdepth" "osd_lat" "op_queue_lat" "bluestore_simple_writes_lat" "bluestore_deferred_writes_lat" "kv_queue_lat" "bluestore_kv_sync_lat" "bluestore_kvq_lat" "bluestore_simple_service_lat" "bluestore_deferred_service_lat" |  paste -sd ',' > ${DATA_FILE} 
 
 	./start_ceph.sh
 	sudo bin/ceph osd pool create mybench 128 128
+	sudo bin/rbd create --size=40G mybench/image1
 
 	#sleep 5 # warmup
         
     echo benchmark starts!
-	echo $qd 
-	sudo bin/rados bench -p mybench -b ${bs} -t ${qd} ${totalruntime} write --no-cleanup | tee dump-rados-bench-${qd}
+	echo $qd
+    sudo bin/rbd -p mybench bench image1 --io-type $iotype --io-size $bs --io-threads $qd --io-total $iototal --io-pattern $iopattern 2>&1 | tee  dump-rbd-bench-${qd}
+
 	#sleep 5
 
 	sudo bin/ceph daemon osd.0 dump kvq vector
@@ -55,6 +59,7 @@ printf '%s\n' "bs" "runtime" "qdepth" "osd_lat" "op_queue_lat" "bluestore_simple
 	#sudo bin/ceph daemon osd.0 perf dump > dump-state-${qd}
     echo benchmark stops!
 
+	sudo bin/rbd rm mybench/image1
     sudo bin/ceph osd pool delete $pool $pool --yes-i-really-really-mean-it
     sudo ../src/stop.sh
 
