@@ -14,6 +14,7 @@ pool="mybench"
 single_dump() {
     qdepth=$1
     dump_state="dump-state-${qdepth}"
+    sudo bin/ceph daemon osd.0 dump_op_pq_state 2>/dev/null > dump_op_pq_state
     sudo bin/ceph daemon osd.0 perf dump 2>/dev/null > $dump_state
 	osd_op_in_osd_lat=$(jq ".osd.osd_op_in_osd_lat.avgtime" $dump_state)
 	osd_op_queueing_time=$(jq ".osd.osd_op_queueing_time.avgtime" $dump_state)
@@ -44,7 +45,7 @@ printf '%s\n' "bs" "runtime" "qdepth" "osd_lat" "op_queue_lat" "bluestore_simple
         
     echo benchmark starts!
 	echo $qd
-    sudo LD_LIBRARY_PATH="$CEPH_HOME"/build/lib:$LD_LIBRARY_PATH "$FIO_HOME"/fio fio_write.fio 
+    sudo LD_LIBRARY_PATH="$CEPH_HOME"/build/lib:$LD_LIBRARY_PATH "$FIO_HOME"/fio fio_write.fio
 	
 	#sleep 5
 
@@ -57,7 +58,8 @@ printf '%s\n' "bs" "runtime" "qdepth" "osd_lat" "op_queue_lat" "bluestore_simple
 	mv ./bluestore_deferred_writes_lat_vec.csv ./dump_bluestore_deferred_writes_lat_vec-${qd}.csv
 	mv ./bluestore_simple_service_lat_vec.csv ./dump_bluestore_simple_service_lat_vec-${qd}.csv
 	mv ./bluestore_deferred_service_lat_vec.csv ./dump_bluestore_deferred_service_lat_vec-${qd}.csv
-	mv ./kv_queue_size_vec.csv ./dump_kv_queue_size_vec-${qd}.csv	
+	mv ./kv_queue_size_vec.csv ./dump_kv_queue_size_vec-${qd}.csv
+	mv ./time_stamps_vec.csv ./dump_time_stamps_vec-${qd}.csv	
 
 	sudo bin/ceph daemon osd.0 dump opq vector
 	mv ./opq_vec.csv ./dump_opq_size_vec-${qd}.csv

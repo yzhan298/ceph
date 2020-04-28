@@ -34,7 +34,7 @@ single_dump() {
 
 printf '%s\n' "bs" "runtime" "qdepth" "bw_mbs" "lat_s" "osd_op_w_lat" "op_queue_lat" "osd_on_committed_lat" "bluestore_writes_lat" "bluestore_simple_writes_lat" "bluestore_deferred_writes_lat" "kv_queue_lat" "bluestore_kv_sync_lat" "bluestore_kvq_lat" "bluestore_simple_service_lat" "bluestore_deferred_service_lat" |  paste -sd ',' > ${DATA_FILE} 
 #for qd in {16..72..8}; do
-for qd in 96; do
+for qd in 48; do
 	#bs="$((2**i*4*1024))"
 	#iototal="$((2**i*4*1024*100000))"   #"$((2**i*40))m"
 	
@@ -67,7 +67,8 @@ for qd in 96; do
 	mv ./bluestore_simple_service_lat_vec.csv ./dump_bluestore_simple_service_lat_vec-${qd}.csv
 	mv ./bluestore_deferred_service_lat_vec.csv ./dump_bluestore_deferred_service_lat_vec-${qd}.csv
 	mv ./kv_queue_size_vec.csv ./dump_kv_queue_size_vec-${qd}.csv	
-
+	mv ./time_stamps_vec.csv ./dump_time_stamps_vec-${qd}.csv
+	
 	sudo bin/ceph daemon osd.0 dump opq vector
 	mv ./opq_vec.csv ./dump_opq_size_vec-${qd}.csv
 
@@ -85,6 +86,7 @@ dn=queueing-delay-${rw}-$(date +"%Y_%m_%d_%I_%M_%p")
 sudo mkdir -p ${dn} # create data if not created
 sudo mv dump* ${dn}
 sudo cp ceph.conf ${dn}
+sudo cp fio_write.fio ${dn}
 sudo mv ${dn} ./data
 echo DONE!
 #done

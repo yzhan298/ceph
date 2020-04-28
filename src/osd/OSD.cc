@@ -11729,11 +11729,14 @@ void OSD::ShardedOpWQ::_process(uint32_t thread_index, heartbeat_handle_d *hb)
     else if (!sdata->stop_waiting)
     {
       dout(20) << __func__ << " empty q, waiting" << dendl;
+      //utime_t t1 = ceph_clock_now();
       osd->cct->get_heartbeat_map()->clear_timeout(hb);
       sdata->shard_lock.unlock();
       sdata->sdata_cond.wait(wait_lock);
       wait_lock.unlock();
       sdata->shard_lock.lock();
+      //utime_t t2 = ceph_clock_now();
+      //dout(0)<<"### wait time="<<t2-t1<<dendl; // order of mag 0.0001 in my test
       if (sdata->pqueue->empty() &&
           !(is_smallest_thread_index && !sdata->context_queue.empty()))
       {
@@ -11756,7 +11759,7 @@ void OSD::ShardedOpWQ::_process(uint32_t thread_index, heartbeat_handle_d *hb)
   list<Context *> oncommits;
   if (is_smallest_thread_index)
   {
-    sdata->context_queue.move_to(oncommits);
+    sdata->context_queue.move_to(oncommits); // swap context_queue and oncommits
   }
 
   if (sdata->pqueue->empty())
@@ -11826,6 +11829,7 @@ retry_pg:
 
     sdata->shard_lock.unlock();
     osd->service.maybe_inject_dispatch_delay();
+    // pg lock held >>> 
     pg->lock();
     osd->service.maybe_inject_dispatch_delay();
     sdata->shard_lock.lock();
@@ -11835,6 +11839,7 @@ retry_pg:
     {
       // this can happen if we race with pg removal.
       dout(20) << __func__ << " slot " << token << " no longer there" << dendl;
+      // pg lock released <<<
       pg->unlock();
       sdata->shard_lock.unlock();
       handle_oncommits(oncommits);

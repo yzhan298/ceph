@@ -4464,7 +4464,7 @@ void PrimaryLogPG::execute_ctx(OpContext *ctx)
     // come back later.
     if (pending_async_reads)
     {
-      //dout(0)<<"###1"<<dendl; // 0
+      // if only contains read or failed, return, notify client
       ceph_assert(pool.info.is_erasure());
       in_progress_async_reads.push_back(make_pair(op, ctx));
       ctx->start_async_reads(this);
@@ -4683,12 +4683,12 @@ void PrimaryLogPG::log_op_stats(const OpRequest &op,
   const utime_t latency = now - m->get_recv_stamp();
   const utime_t process_latency = now - op.get_dequeued_time();
 
-  osd->logger->inc(l_osd_op);
+  osd->logger->inc(l_osd_op); // number of client operations
 
-  osd->logger->inc(l_osd_op_outb, outb);
-  osd->logger->inc(l_osd_op_inb, inb);
-  osd->logger->tinc(l_osd_op_lat, latency);
-  osd->logger->tinc(l_osd_op_process_lat, process_latency);
+  osd->logger->inc(l_osd_op_outb, outb); // Client operations total read size
+  osd->logger->inc(l_osd_op_inb, inb); //Client operations total write size
+  osd->logger->tinc(l_osd_op_lat, latency); // Latency of client operations (including queue time)
+  osd->logger->tinc(l_osd_op_process_lat, process_latency); // Latency of client operations (excluding queue time)
 
   if (op.may_read() && op.may_write())
   {
@@ -4710,11 +4710,11 @@ void PrimaryLogPG::log_op_stats(const OpRequest &op,
   }
   else if (op.may_write() || op.may_cache())
   {
-    osd->logger->inc(l_osd_op_w);
-    osd->logger->inc(l_osd_op_w_inb, inb);
-    osd->logger->tinc(l_osd_op_w_lat, latency);
-    osd->logger->hinc(l_osd_op_w_lat_inb_hist, latency.to_nsec(), inb);
-    osd->logger->tinc(l_osd_op_w_process_lat, process_latency);
+    osd->logger->inc(l_osd_op_w); // number of client write operations
+    osd->logger->inc(l_osd_op_w_inb, inb); // Client data written
+    osd->logger->tinc(l_osd_op_w_lat, latency); // Latency of write operation (including queue time)
+    osd->logger->hinc(l_osd_op_w_lat_inb_hist, latency.to_nsec(), inb); // Histogram of operation latency (including queue time) + data written
+    osd->logger->tinc(l_osd_op_w_process_lat, process_latency); // Latency of write operation (excluding queue time)
   }
   else
   {
@@ -9665,6 +9665,7 @@ int PrimaryLogPG::prepare_transaction(OpContext *ctx)
   }
 
   const hobject_t &soid = ctx->obs->oi.soid;
+  //dout(0)<<"### soid.snap == CEPH_NOSNAP is "<<(soid.snap == CEPH_NOSNAP)<<dendl;
   // clone, if necessary
   if (soid.snap == CEPH_NOSNAP)
     make_writeable(ctx);
@@ -9858,6 +9859,7 @@ void PrimaryLogPG::complete_read_ctx(int result, OpContext *ctx)
   {
     if (!ctx->ignore_log_op_stats)
     {
+      dout(0)<<"### 1"<<dendl;
       log_op_stats(*ctx->op, ctx->bytes_written, ctx->bytes_read);
 
       publish_stats_to_osd();

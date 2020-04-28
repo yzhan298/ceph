@@ -517,6 +517,7 @@ void ReplicatedBackend::submit_transaction(
   PGTransactionUPtr t(std::move(_t));
   set<hobject_t> added, removed;
   //dout(0)<<"###3 t="<<ceph_clock_now()<<dendl;
+  // convert PGTransaction to ObjectStore::Transaction 
   generate_transaction(
       t,
       coll,
@@ -576,7 +577,7 @@ void ReplicatedBackend::submit_transaction(
 
   vector<ObjectStore::Transaction> tls;
   tls.push_back(std::move(op_t));
-
+  //dout(0)<<"### tls size="<<tls.size()<<dendl; // always 1 in my test
   //orig_op->leave_osd_time = ceph_clock_now();
   //auto op_in_osd_lat = orig_op->leave_osd_time-orig_op->enqueued_time;
   // after calling the queue_Transactions, the request is handed to BlueStore
