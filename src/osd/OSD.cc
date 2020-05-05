@@ -2077,7 +2077,6 @@ int heap(CephContext &cct, const cmdmap_t &cmdmap, Formatter &f, std::ostream &o
 int OSD::mkfs(CephContext *cct, ObjectStore *store, uuid_d fsid, int whoami)
 {
   int ret;
-
   OSDSuperblock sb;
   bufferlist sbbl;
   ObjectStore::CollectionHandle ch;
@@ -3424,6 +3423,11 @@ will start to track new ops received afterwards.";
     lock_guard l(osd_lock);
     dump_opq_vector();
   }
+  else if (prefix == "reset opq vector")
+  {
+    lock_guard l(osd_lock);
+    reset_opq_vector();
+  }
   else
   {
     ceph_abort_msg("broken asok registration");
@@ -3452,8 +3456,12 @@ void OSD::write_csv(std::string filename, std::string colname, std::vector<T> &v
 void OSD::dump_opq_vector()
 {
   //sdata->pqueue->get_size_slow(), get_io_queue(), opqueue
-  write_csv("opq_vec.csv", "opq_vec", opq_vec); // op_queue size
+  write_csv("dump_opq_vec.csv", "opq_vec", opq_vec); // op_queue size
   //write_csv("opq_lat_vec.csv", "opq_lat_vec", opq_lat_vec); // op_queue latency
+}
+void OSD::reset_opq_vector()
+{
+  opq_vec.clear();
 }
 
 class TestOpsSocketHook : public AdminSocketHook
@@ -4200,6 +4208,9 @@ void OSD::final_init()
   r = admin_socket->register_command("dump opq vector",
                                      asok_hook,
                                      "dump op_queue vector");
+  r = admin_socket->register_command("reset opq vector",
+                                     asok_hook,
+                                     "reset op_queue vector");
 
   test_ops_hook = new TestOpsSocketHook(&(this->service), this->store);
   // Note: pools are CephString instead of CephPoolname because
@@ -11830,6 +11841,7 @@ retry_pg:
     sdata->shard_lock.unlock();
     osd->service.maybe_inject_dispatch_delay();
     // pg lock held >>> 
+    utime_t pglock_ts1 = ceph_clock_now();
     pg->lock();
     osd->service.maybe_inject_dispatch_delay();
     sdata->shard_lock.lock();
@@ -11841,6 +11853,8 @@ retry_pg:
       dout(20) << __func__ << " slot " << token << " no longer there" << dendl;
       // pg lock released <<<
       pg->unlock();
+        utime_t pglock_ts2 = ceph_clock_now();
+        dout(0)<<"### pg_lock lat="<<pglock_ts2-pglock_ts1<<dendl;
       sdata->shard_lock.unlock();
       handle_oncommits(oncommits);
       return;
@@ -11854,6 +11868,8 @@ retry_pg:
       dout(20) << __func__ << " " << token
                << " nothing queued" << dendl;
       pg->unlock();
+      utime_t pglock_ts2 = ceph_clock_now();
+      dout(0)<<"### pg_lock lat="<<pglock_ts2-pglock_ts1<<dendl;
       sdata->shard_lock.unlock();
       handle_oncommits(oncommits);
       return;
@@ -11865,6 +11881,8 @@ retry_pg:
                << requeue_seq << ", we raced with _wake_pg_slot"
                << dendl;
       pg->unlock();
+      utime_t pglock_ts2 = ceph_clock_now();
+      dout(0)<<"### pg_lock lat="<<pglock_ts2-pglock_ts1<<dendl;
       sdata->shard_lock.unlock();
       handle_oncommits(oncommits);
       return;
@@ -11875,6 +11893,8 @@ retry_pg:
       dout(20) << __func__ << " slot " << token << " no longer attached to "
                << pg << dendl;
       pg->unlock();
+      utime_t pglock_ts2 = ceph_clock_now();
+      dout(0)<<"### pg_lock lat="<<pglock_ts2-pglock_ts1<<dendl;
       goto retry_pg;
     }
   }

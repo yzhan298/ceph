@@ -5,11 +5,9 @@ pool=mybench
 rbdname=image1
 rw=randwrite
 bs=4096
-;size=83886080000
 time_based=1
-runtime=150
+runtime=20
 direct = 1
-;write_iops_log
 
 [fio-write]
 iodepth=128

@@ -1140,7 +1140,7 @@ public:
   template<class T>
   void write_csv(std::string filename, std::string colname, std::vector<T>& vec);
   void dump_opq_vector();
-  
+  void reset_opq_vector();
 
 protected:
 

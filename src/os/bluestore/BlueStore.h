@@ -78,6 +78,8 @@ enum
   l_bluestore_simple_service_lat,   // simple write io service time(1 flush + 1 kv commit + 1 aio)
   l_bluestore_deferred_service_lat, // deferred write io service time(2 flush + 1 kv commit + 1 aio)
   l_bluestore_deferred_total_lat,   // total lat for deferred writes from STATE_KV_DONE to STATE_FINISHING
+  l_bluestore_simple_async_io_lat,  // async io latency for simple writes 
+  l_bluestore_deferred_async_io_lat,// async io latency for deferred writes  
   l_bluestore_db_get_transaction,   // time of getting db->get_transaction()
   //l_bluestore_db_get_onode_lat, // latency of getting onode from db
   l_bluestore_state_prepare_lat,
@@ -182,6 +184,7 @@ public:
   typedef map<uint64_t, bufferlist> ready_regions_t;
 
   void dump_kvq_vector(ostream &out);
+  void reset_kvq_vector(ostream &out);
 
   struct BufferSpace;
   struct Collection;
@@ -1792,7 +1795,8 @@ public:
 
     // create a vector to store all related time stamps
     //vector<uint64_t> txc_time_stamps_vec;
-    vector<std::pair<std::string, uint64_t>> txc_time_stamps_vec;
+    //vector<std::pair<std::string, uint64_t>> txc_time_stamps_vec;
+    vector<std::pair<std::string, utime_t>> txc_time_stamps_vec;
 
     //utime_t dio_aio_latency; // store aio processing latency for deferred writes
     //utime_t dio_total_latency; // store total dio latency(including queueing and waiting time)
@@ -2027,19 +2031,22 @@ public:
     size_t committing_number = 0; // testing: track the commit number
 
     // these vectors are for latency model in BlueStore
-    vector<double> kv_sync_lat_vec;                   // flush + kv_commit
-    vector<double> kvq_lat_vec;                       // kv_queue_lat + kv_sync_lat
-    vector<double> bluestore_lat_vec;                 //bluestore latency vector(from state machine begining to the end)
-    vector<double> bluestore_simple_writes_lat_vec;   //bluestore simple_writes latency vector
-    vector<double> bluestore_deferred_writes_lat_vec; //bluestore deferred_writes latency vector
-    vector<double> total_bluestore_simple_write_lat_vec;
-    vector<double> bluestore_simple_service_lat_vec;   // simple write service time(no queueing and waiting)
-    vector<double> bluestore_deferred_service_lat_vec; // deferred write service time(no queueing and waiting)
-    vector<uint64_t> txc_bytes_vec;                    // store txc->bytes
+    vector<double> kv_sync_lat_vec;                     // flush + kv_commit
+    vector<double> kvq_lat_vec;                         // kv_queue_lat + kv_sync_lat
+    vector<double> bluestore_lat_vec;                   // bluestore latency vector(from state machine begining to the end)
+    vector<double> bluestore_simple_writes_lat_vec;     // bluestore simple_writes latency vector
+    vector<double> bluestore_deferred_writes_lat_vec;   // bluestore deferred_writes latency vector
+    //vector<double> total_bluestore_simple_write_lat_vec;
+    vector<double> bluestore_simple_service_lat_vec;    // simple write service time(no queueing and waiting)
+    vector<double> bluestore_deferred_service_lat_vec;  // deferred write service time(no queueing and waiting)
+    vector<uint64_t> txc_bytes_vec;                     // store txc->bytes
+    vector<double> simple_asyncio_lat_vec;                  // async io processed in kernel device latency for simple writes
+    vector<double> deferred_asyncio_lat_vec;                // async io processed in kernel device latency for deferred writes
 
     // dump time stamps per txc
     //vector<vector<uint64_t>> time_stamps_vec;
-    vector<vector<std::pair<std::string, uint64_t>>> time_stamps_vec;
+    //vector<vector<std::pair<std::string, uint64_t>>> time_stamps_vec;
+    vector<vector<std::pair<std::string, utime_t>>> time_stamps_vec;
 
     // these vectors are for CoDel experiments
     // 1. opq size in real time

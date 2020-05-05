@@ -24,6 +24,10 @@
 #include "include/util.h"
 #include "OSD.h"
 
+#include "common/BackTrace.h"
+#define BACKTRACE() stringstream ss;BackTrace *bt = new BackTrace(1);bt->print(ss);derr << "### backtrace: \n"<< ss.str() << dendl;delete bt;
+
+
 #define dout_context cct
 #define dout_subsys ceph_subsys_osd
 #define DOUT_PREFIX_ARGS this
@@ -593,6 +597,8 @@ void ReplicatedBackend::submit_transaction(
 
 void ReplicatedBackend::op_commit(const ceph::ref_t<InProgressOp> &op)
 {
+  //BACKTRACE();
+  
   if (op->on_commit == nullptr)
   {
     // aborted

@@ -9859,7 +9859,6 @@ void PrimaryLogPG::complete_read_ctx(int result, OpContext *ctx)
   {
     if (!ctx->ignore_log_op_stats)
     {
-      dout(0)<<"### 1"<<dendl;
       log_op_stats(*ctx->op, ctx->bytes_written, ctx->bytes_read);
 
       publish_stats_to_osd();
