@@ -51,11 +51,14 @@ using std::stringstream;
 using std::unique_ptr;
 using std::vector;
 
+using ceph::bufferlist;
 using ceph::decode;
 using ceph::decode_nohead;
 using ceph::encode;
 using ceph::encode_nohead;
 using ceph::Formatter;
+using ceph::make_timespan;
+using ceph::JSONFormatter;
 
 using namespace std::literals;
 
@@ -314,7 +317,7 @@ void request_redirect_t::decode(ceph::buffer::list::const_iterator& bl)
   decode(redirect_object, bl);
   decode(legacy_osd_instructions_len, bl);
   if (legacy_osd_instructions_len) {
-    bl.advance(legacy_osd_instructions_len);
+    bl += legacy_osd_instructions_len;
   }
   DECODE_FINISH(bl);
 }
@@ -392,7 +395,7 @@ void objectstore_perf_stat_t::generate_test_instances(std::list<objectstore_perf
 }
 
 // -- osd_stat_t --
-void osd_stat_t::dump(Formatter *f) const
+void osd_stat_t::dump(Formatter *f, bool with_net) const
 {
   f->dump_unsigned("up_from", up_from);
   f->dump_unsigned("seq", seq);
@@ -429,6 +432,13 @@ void osd_stat_t::dump(Formatter *f) const
   f->open_array_section("alerts");
   ::dump(f, os_alerts);
   f->close_section();
+  if (with_net) {
+    dump_ping_time(f);
+  }
+}
+
+void osd_stat_t::dump_ping_time(Formatter *f) const
+{
   f->open_array_section("network_ping_times");
   for (auto &i : hb_pingtime) {
     f->open_object_section("entry");
@@ -442,42 +452,42 @@ void osd_stat_t::dump(Formatter *f) const
     f->open_object_section("interface");
     f->dump_string("interface", "back");
     f->open_object_section("average");
-    f->dump_format_unquoted("1min", "%s", fixed_u_to_string(i.second.back_pingtime[0],3).c_str());
-    f->dump_format_unquoted("5min", "%s", fixed_u_to_string(i.second.back_pingtime[1],3).c_str());
-    f->dump_format_unquoted("15min", "%s", fixed_u_to_string(i.second.back_pingtime[2],3).c_str());
+    f->dump_float("1min", i.second.back_pingtime[0]/1000.0);
+    f->dump_float("5min", i.second.back_pingtime[1]/1000.0);
+    f->dump_float("15min", i.second.back_pingtime[2]/1000.0);
     f->close_section(); // average
     f->open_object_section("min");
-    f->dump_format_unquoted("1min", "%s", fixed_u_to_string(i.second.back_min[0],3).c_str());
-    f->dump_format_unquoted("5min", "%s", fixed_u_to_string(i.second.back_min[1],3).c_str());
-    f->dump_format_unquoted("15min", "%s", fixed_u_to_string(i.second.back_min[2],3).c_str());
+    f->dump_float("1min", i.second.back_min[0]/1000.0);
+    f->dump_float("5min", i.second.back_min[1]/1000.0);
+    f->dump_float("15min", i.second.back_min[2]/1000.0);
     f->close_section(); // min
     f->open_object_section("max");
-    f->dump_format_unquoted("1min", "%s", fixed_u_to_string(i.second.back_max[0],3).c_str());
-    f->dump_format_unquoted("5min", "%s", fixed_u_to_string(i.second.back_max[1],3).c_str());
-    f->dump_format_unquoted("15min", "%s", fixed_u_to_string(i.second.back_max[2],3).c_str());
+    f->dump_float("1min", i.second.back_max[0]/1000.0);
+    f->dump_float("5min", i.second.back_max[1]/1000.0);
+    f->dump_float("15min", i.second.back_max[2]/1000.0);
     f->close_section(); // max
-    f->dump_format_unquoted("last", "%s", fixed_u_to_string(i.second.back_last,3).c_str());
+    f->dump_float("last", i.second.back_last/1000.0);
     f->close_section(); // interface
 
     if (i.second.front_pingtime[0] != 0) {
       f->open_object_section("interface");
       f->dump_string("interface", "front");
       f->open_object_section("average");
-      f->dump_format_unquoted("1min", "%s", fixed_u_to_string(i.second.front_pingtime[0],3).c_str());
-      f->dump_format_unquoted("5min", "%s", fixed_u_to_string(i.second.front_pingtime[1],3).c_str());
-      f->dump_format_unquoted("15min", "%s", fixed_u_to_string(i.second.front_pingtime[2],3).c_str());
+      f->dump_float("1min", i.second.front_pingtime[0]/1000.0);
+      f->dump_float("5min", i.second.front_pingtime[1]/1000.0);
+      f->dump_float("15min", i.second.front_pingtime[2]/1000.0);
       f->close_section(); // average
       f->open_object_section("min");
-      f->dump_format_unquoted("1min", "%s", fixed_u_to_string(i.second.front_min[0],3).c_str());
-      f->dump_format_unquoted("5min", "%s", fixed_u_to_string(i.second.front_min[1],3).c_str());
-      f->dump_format_unquoted("15min", "%s", fixed_u_to_string(i.second.front_min[2],3).c_str());
+      f->dump_float("1min", i.second.front_min[0]/1000.0);
+      f->dump_float("5min", i.second.front_min[1]/1000.0);
+      f->dump_float("15min", i.second.front_min[2]/1000.0);
       f->close_section(); // min
       f->open_object_section("max");
-      f->dump_format_unquoted("1min", "%s", fixed_u_to_string(i.second.front_max[0],3).c_str());
-      f->dump_format_unquoted("5min", "%s", fixed_u_to_string(i.second.front_max[1],3).c_str());
-      f->dump_format_unquoted("15min", "%s", fixed_u_to_string(i.second.front_max[2],3).c_str());
+      f->dump_float("1min", i.second.front_max[0]/1000.0);
+      f->dump_float("5min", i.second.front_max[1]/1000.0);
+      f->dump_float("15min", i.second.front_max[2]/1000.0);
       f->close_section(); // max
-      f->dump_format_unquoted("last", "%s", fixed_u_to_string(i.second.front_last,3).c_str());
+      f->dump_float("last", i.second.front_last/1000.0);
       f->close_section(); // interface
     }
     f->close_section(); // interfaces
@@ -3708,7 +3718,7 @@ public:
   pair<epoch_t, epoch_t> get_bounds() const override {
     return make_pair(first, last + 1);
   }
-  void adjust_start_backwards(epoch_t last_epoch_clean) {
+  void adjust_start_backwards(epoch_t last_epoch_clean) override {
     first = last_epoch_clean;
   }
 
@@ -4488,9 +4498,9 @@ void ObjectModDesc::decode(ceph::buffer::list::const_iterator &_bl)
   DECODE_FINISH(_bl);
 }
 
-std::atomic<int32_t> ObjectCleanRegions::max_num_intervals = {10};
+std::atomic<uint32_t> ObjectCleanRegions::max_num_intervals = {10};
 
-void ObjectCleanRegions::set_max_num_intervals(int32_t num)
+void ObjectCleanRegions::set_max_num_intervals(uint32_t num)
 {
   max_num_intervals = num;
 }
@@ -5576,7 +5586,7 @@ void SnapSet::decode(ceph::buffer::list::const_iterator& bl)
 {
   DECODE_START_LEGACY_COMPAT_LEN(3, 2, 2, bl);
   decode(seq, bl);
-  bl.advance(1u);  // skip legacy head_exists (always true)
+  bl += 1u;  // skip legacy head_exists (always true)
   decode(snaps, bl);
   decode(clones, bl);
   decode(clone_overlap, bl);
@@ -6814,20 +6824,18 @@ void OSDOp::clear_data(vector<OSDOp>& ops)
     if (ceph_osd_op_type_attr(op.op.op) &&
         op.op.xattr.name_len &&
 	op.indata.length() >= op.op.xattr.name_len) {
-      ceph::buffer::ptr bp(op.op.xattr.name_len);
       ceph::buffer::list bl;
-      bl.append(bp);
-      bl.copy_in(0, op.op.xattr.name_len, op.indata);
+      bl.push_back(ceph::buffer::ptr_node::create(op.op.xattr.name_len));
+      bl.begin().copy_in(op.op.xattr.name_len, op.indata);
       op.indata.claim(bl);
     } else if (ceph_osd_op_type_exec(op.op.op) &&
                op.op.cls.class_len &&
 	       op.indata.length() >
 	         (op.op.cls.class_len + op.op.cls.method_len)) {
       __u8 len = op.op.cls.class_len + op.op.cls.method_len;
-      ceph::buffer::ptr bp(len);
       ceph::buffer::list bl;
-      bl.append(bp);
-      bl.copy_in(0, len, op.indata);
+      bl.push_back(ceph::buffer::ptr_node::create(len));
+      bl.begin().copy_in(len, op.indata);
       op.indata.claim(bl);
     } else {
       op.indata.clear();
@@ -6838,6 +6846,7 @@ void OSDOp::clear_data(vector<OSDOp>& ops)
 int prepare_info_keymap(
   CephContext* cct,
   map<string,bufferlist> *km,
+  string *key_to_remove,
   epoch_t epoch,
   pg_info_t &info,
   pg_info_t &last_written_info,
@@ -6883,6 +6892,10 @@ int prepare_info_keymap(
       }
       *_dout << dendl;
     }
+  } else if (info.last_update <= last_written_info.last_update) {
+    // clean up any potentially stale fastinfo key resulting from last_update
+    // not moving forwards (e.g., a backwards jump during peering)
+    *key_to_remove = fastinfo_key;
   }
 
   last_written_info = info;
@@ -6951,7 +6964,7 @@ int PGLSPlainFilter::init(ceph::bufferlist::const_iterator &params)
   try {
     decode(xattr, params);
     decode(val, params);
-  } catch (buffer::error &e) {
+  } catch (ceph::buffer::error &e) {
     return -EINVAL;
   }
   return 0;

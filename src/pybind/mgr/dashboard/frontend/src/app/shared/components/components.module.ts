@@ -1,8 +1,10 @@
 import { CommonModule } from '@angular/common';
 import { NgModule } from '@angular/core';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { RouterModule } from '@angular/router';
 
 import { NgBootstrapFormValidationModule } from 'ng-bootstrap-form-validation';
+import { ClickOutsideModule } from 'ng-click-outside';
 import { ChartsModule } from 'ng2-charts';
 import { AlertModule } from 'ngx-bootstrap/alert';
 import { BsDropdownModule } from 'ngx-bootstrap/dropdown';
@@ -10,6 +12,7 @@ import { ModalModule } from 'ngx-bootstrap/modal';
 import { PopoverModule } from 'ngx-bootstrap/popover';
 import { ProgressbarModule } from 'ngx-bootstrap/progressbar';
 import { TooltipModule } from 'ngx-bootstrap/tooltip';
+import { SimplebarAngularModule } from 'simplebar-angular';
 
 import { DirectivesModule } from '../directives/directives.module';
 import { PipesModule } from '../pipes/pipes.module';
@@ -18,12 +21,16 @@ import { BackButtonComponent } from './back-button/back-button.component';
 import { ConfigOptionComponent } from './config-option/config-option.component';
 import { ConfirmationModalComponent } from './confirmation-modal/confirmation-modal.component';
 import { CriticalConfirmationModalComponent } from './critical-confirmation-modal/critical-confirmation-modal.component';
+import { FormModalComponent } from './form-modal/form-modal.component';
 import { GrafanaComponent } from './grafana/grafana.component';
 import { HelperComponent } from './helper/helper.component';
 import { LanguageSelectorComponent } from './language-selector/language-selector.component';
 import { LoadingPanelComponent } from './loading-panel/loading-panel.component';
 import { ModalComponent } from './modal/modal.component';
 import { NotificationsSidebarComponent } from './notifications-sidebar/notifications-sidebar.component';
+import { OrchestratorDocModalComponent } from './orchestrator-doc-modal/orchestrator-doc-modal.component';
+import { OrchestratorDocPanelComponent } from './orchestrator-doc-panel/orchestrator-doc-panel.component';
+import { PwdExpirationNotificationComponent } from './pwd-expiration-notification/pwd-expiration-notification.component';
 import { RefreshSelectorComponent } from './refresh-selector/refresh-selector.component';
 import { SelectBadgesComponent } from './select-badges/select-badges.component';
 import { SelectComponent } from './select/select.component';
@@ -47,7 +54,10 @@ import { ViewCacheComponent } from './view-cache/view-cache.component';
     ModalModule.forRoot(),
     DirectivesModule,
     BsDropdownModule,
-    NgBootstrapFormValidationModule
+    NgBootstrapFormValidationModule,
+    ClickOutsideModule,
+    SimplebarAngularModule,
+    RouterModule
   ],
   declarations: [
     ViewCacheComponent,
@@ -67,7 +77,11 @@ import { ViewCacheComponent } from './view-cache/view-cache.component';
     BackButtonComponent,
     RefreshSelectorComponent,
     ConfigOptionComponent,
-    AlertPanelComponent
+    AlertPanelComponent,
+    FormModalComponent,
+    PwdExpirationNotificationComponent,
+    OrchestratorDocPanelComponent,
+    OrchestratorDocModalComponent
   ],
   providers: [],
   exports: [
@@ -86,8 +100,15 @@ import { ViewCacheComponent } from './view-cache/view-cache.component';
     SelectComponent,
     RefreshSelectorComponent,
     ConfigOptionComponent,
-    AlertPanelComponent
+    AlertPanelComponent,
+    PwdExpirationNotificationComponent,
+    OrchestratorDocPanelComponent
   ],
-  entryComponents: [ModalComponent, CriticalConfirmationModalComponent, ConfirmationModalComponent]
+  entryComponents: [
+    ModalComponent,
+    CriticalConfirmationModalComponent,
+    ConfirmationModalComponent,
+    FormModalComponent
+  ]
 })
 export class ComponentsModule {}

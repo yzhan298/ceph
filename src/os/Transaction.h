@@ -5,8 +5,10 @@
 
 #include <map>
 
+#include "include/Context.h"
 #include "include/int_types.h"
 #include "include/buffer.h"
+
 #include "osd/osd_types.h"
 
 #define OPS_PER_PTR 32
@@ -360,6 +362,14 @@ public:
 				    i.on_applied_sync);
     }
   }
+  static Context *collect_all_contexts(
+    Transaction& t) {
+    std::list<Context*> contexts;
+    contexts.splice(contexts.end(), t.on_applied);
+    contexts.splice(contexts.end(), t.on_commit);
+    contexts.splice(contexts.end(), t.on_applied_sync);
+    return C_Contexts::list_to_context(contexts);
+  }
 
   Context *get_on_applied() {
     return C_Contexts::list_to_context(on_applied);
@@ -543,7 +553,7 @@ public:
     ceph::buffer::list other_op_bl;
     {
       ceph::buffer::ptr other_op_bl_ptr(other.op_bl.length());
-      other.op_bl.copy(0, other.op_bl.length(), other_op_bl_ptr.c_str());
+      other.op_bl.begin().copy(other.op_bl.length(), other_op_bl_ptr.c_str());
       other_op_bl.append(std::move(other_op_bl_ptr));
     }
 
@@ -1116,6 +1126,22 @@ public:
     _op->cid = _get_coll_id(cid);
     _op->oid = _get_object_id(oid);
     encode(keys, data_bl);
+    data.ops = data.ops + 1;
+  }
+
+  /// Remove key from oid omap
+  void omap_rmkey(
+    const coll_t &cid,             ///< [in] Collection containing oid
+    const ghobject_t &oid,  ///< [in] Object from which to remove the omap
+    const std::string& key ///< [in] Keys to clear
+    ) {
+    Op* _op = _get_next_op();
+    _op->op = OP_OMAP_RMKEYS;
+    _op->cid = _get_coll_id(cid);
+    _op->oid = _get_object_id(oid);
+    using ceph::encode;
+    encode((uint32_t)1, data_bl);
+    encode(key, data_bl);
     data.ops = data.ops + 1;
   }
 

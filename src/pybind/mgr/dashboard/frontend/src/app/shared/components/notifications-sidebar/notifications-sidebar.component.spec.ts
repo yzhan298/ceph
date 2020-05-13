@@ -2,16 +2,20 @@ import { HttpClientTestingModule } from '@angular/common/http/testing';
 import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 
+import { ClickOutsideModule } from 'ng-click-outside';
 import { PopoverModule } from 'ngx-bootstrap/popover';
 import { ProgressbarModule } from 'ngx-bootstrap/progressbar';
 import { ToastrModule } from 'ngx-toastr';
+import { SimplebarAngularModule } from 'simplebar-angular';
 
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { configureTestBed, i18nProviders } from '../../../../testing/unit-test-helper';
 import { PrometheusService } from '../../api/prometheus.service';
+import { RbdService } from '../../api/rbd.service';
 import { SettingsService } from '../../api/settings.service';
 import { NotificationType } from '../../enum/notification-type.enum';
 import { ExecutingTask } from '../../models/executing-task';
+import { Permissions } from '../../models/permissions';
 import { PipesModule } from '../../pipes/pipes.module';
 import { AuthStorageService } from '../../services/auth-storage.service';
 import { NotificationService } from '../../services/notification.service';
@@ -32,7 +36,9 @@ describe('NotificationsSidebarComponent', () => {
       ProgressbarModule.forRoot(),
       RouterTestingModule,
       ToastrModule.forRoot(),
-      NoopAnimationsModule
+      NoopAnimationsModule,
+      SimplebarAngularModule,
+      ClickOutsideModule
     ],
     declarations: [NotificationsSidebarComponent],
     providers: [
@@ -40,7 +46,8 @@ describe('NotificationsSidebarComponent', () => {
       PrometheusService,
       SettingsService,
       SummaryService,
-      NotificationService
+      NotificationService,
+      RbdService
     ]
   });
 
@@ -57,7 +64,8 @@ describe('NotificationsSidebarComponent', () => {
   describe('prometheus alert handling', () => {
     let prometheusAlertService: PrometheusAlertService;
     let prometheusNotificationService: PrometheusNotificationService;
-    let prometheusAccessAllowed: boolean;
+    let prometheusReadPermission: string;
+    let configOptReadPermission: string;
 
     const expectPrometheusServicesToBeCalledTimes = (n: number) => {
       expect(prometheusNotificationService.refresh).toHaveBeenCalledTimes(n);
@@ -65,10 +73,15 @@ describe('NotificationsSidebarComponent', () => {
     };
 
     beforeEach(() => {
-      prometheusAccessAllowed = true;
-      spyOn(TestBed.get(AuthStorageService), 'getPermissions').and.callFake(() => ({
-        prometheus: { read: prometheusAccessAllowed }
-      }));
+      prometheusReadPermission = 'read';
+      configOptReadPermission = 'read';
+      spyOn(TestBed.get(AuthStorageService), 'getPermissions').and.callFake(
+        () =>
+          new Permissions({
+            prometheus: [prometheusReadPermission],
+            'config-opt': [configOptReadPermission]
+          })
+      );
 
       spyOn(TestBed.get(PrometheusService), 'ifAlertmanagerConfigured').and.callFake((fn) => fn());
 
@@ -80,11 +93,19 @@ describe('NotificationsSidebarComponent', () => {
     });
 
     it('should not refresh prometheus services if not allowed', () => {
-      prometheusAccessAllowed = false;
+      prometheusReadPermission = '';
+      configOptReadPermission = 'read';
+      fixture.detectChanges();
+
+      expectPrometheusServicesToBeCalledTimes(0);
+
+      prometheusReadPermission = 'read';
+      configOptReadPermission = '';
       fixture.detectChanges();
 
       expectPrometheusServicesToBeCalledTimes(0);
     });
+
     it('should first refresh prometheus notifications and alerts during init', () => {
       fixture.detectChanges();
 
@@ -116,8 +137,7 @@ describe('NotificationsSidebarComponent', () => {
 
     it('should handle executing tasks', () => {
       const running_tasks = new ExecutingTask('rbd/delete', {
-        pool_name: 'somePool',
-        image_name: 'someImage'
+        image_spec: 'somePool/someImage'
       });
 
       summaryService['summaryDataSource'].next({ executing_tasks: [running_tasks] });
@@ -140,5 +160,42 @@ describe('NotificationsSidebarComponent', () => {
       expect(component.notifications.length).toBe(1);
       expect(component.notifications[0].title).toBe('Sample title');
     }));
+  });
+
+  describe('Sidebar', () => {
+    let notificationService: NotificationService;
+
+    beforeEach(() => {
+      notificationService = TestBed.get(NotificationService);
+      fixture.detectChanges();
+    });
+
+    it('should always close if sidebarSubject value is true', fakeAsync(() => {
+      // Closed before next value
+      expect(component.isSidebarOpened).toBeFalsy();
+      notificationService.sidebarSubject.next(true);
+      tick();
+      expect(component.isSidebarOpened).toBeFalsy();
+
+      // Opened before next value
+      component.isSidebarOpened = true;
+      expect(component.isSidebarOpened).toBeTruthy();
+      notificationService.sidebarSubject.next(true);
+      tick();
+      expect(component.isSidebarOpened).toBeFalsy();
+    }));
+
+    it('should toggle sidebar visibility if sidebarSubject value is false', () => {
+      // Closed before next value
+      expect(component.isSidebarOpened).toBeFalsy();
+      notificationService.sidebarSubject.next(false);
+      expect(component.isSidebarOpened).toBeTruthy();
+
+      // Opened before next value
+      component.isSidebarOpened = true;
+      expect(component.isSidebarOpened).toBeTruthy();
+      notificationService.sidebarSubject.next(false);
+      expect(component.isSidebarOpened).toBeFalsy();
+    });
   });
 });

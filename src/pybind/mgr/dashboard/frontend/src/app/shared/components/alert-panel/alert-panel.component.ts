@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
+import { Component, Input, OnInit } from '@angular/core';
 import { I18n } from '@ngx-translate/i18n-polyfill';
 import { Icons } from '../../enum/icons.enum';
 
@@ -12,8 +12,6 @@ export class AlertPanelComponent implements OnInit {
   title = '';
   @Input()
   bootstrapClass = '';
-  @Output()
-  backAction = new EventEmitter();
   @Input()
   type: 'warning' | 'error' | 'info' | 'success';
   @Input()
@@ -22,6 +20,8 @@ export class AlertPanelComponent implements OnInit {
   size: 'slim' | 'normal' = 'normal';
   @Input()
   showIcon = true;
+  @Input()
+  showTitle = true;
 
   icons = Icons;
 

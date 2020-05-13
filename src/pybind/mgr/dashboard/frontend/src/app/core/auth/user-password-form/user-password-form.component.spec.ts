@@ -22,21 +22,18 @@ describe('UserPasswordFormComponent', () => {
   let router: Router;
   let authStorageService: AuthStorageService;
 
-  configureTestBed(
-    {
-      imports: [
-        HttpClientTestingModule,
-        RouterTestingModule,
-        ReactiveFormsModule,
-        ComponentsModule,
-        ToastrModule.forRoot(),
-        SharedModule
-      ],
-      declarations: [UserPasswordFormComponent],
-      providers: i18nProviders
-    },
-    true
-  );
+  configureTestBed({
+    imports: [
+      HttpClientTestingModule,
+      RouterTestingModule,
+      ReactiveFormsModule,
+      ComponentsModule,
+      ToastrModule.forRoot(),
+      SharedModule
+    ],
+    declarations: [UserPasswordFormComponent],
+    providers: i18nProviders
+  });
 
   beforeEach(() => {
     fixture = TestBed.createComponent(UserPasswordFormComponent);
@@ -65,42 +62,8 @@ describe('UserPasswordFormComponent', () => {
     formHelper.expectValidChange('confirmnewpassword', 'aaa');
   });
 
-  it('should validate password strength very strong', () => {
-    formHelper.setValue('newpassword', 'testpassword#!$!@$');
-    component.checkPassword('testpassword#!$!@$');
-    expect(component.passwordStrengthDescription).toBe('Very strong');
-    expect(component.passwordStrengthLevel).toBe('passwordStrengthLevel4');
-  });
-
-  it('should validate password strength strong', () => {
-    formHelper.setValue('newpassword', 'testpassword0047!@');
-    component.checkPassword('testpassword0047!@');
-    expect(component.passwordStrengthDescription).toBe('Strong');
-    expect(component.passwordStrengthLevel).toBe('passwordStrengthLevel3');
-  });
-
-  it('should validate password strength ok ', () => {
-    formHelper.setValue('newpassword', 'mypassword1!@');
-    component.checkPassword('mypassword1!@');
-    expect(component.passwordStrengthDescription).toBe('OK');
-    expect(component.passwordStrengthLevel).toBe('passwordStrengthLevel2');
-  });
-
-  it('should validate password strength weak', () => {
-    formHelper.setValue('newpassword', 'mypassword1');
-    component.checkPassword('mypassword1');
-    expect(component.passwordStrengthDescription).toBe('Weak');
-    expect(component.passwordStrengthLevel).toBe('passwordStrengthLevel1');
-  });
-
-  it('should validate password strength too weak', () => {
-    formHelper.setValue('newpassword', 'abc0');
-    component.checkPassword('abc0');
-    expect(component.passwordStrengthDescription).toBe('Too weak');
-    expect(component.passwordStrengthLevel).toBe('passwordStrengthLevel0');
-  });
-
   it('should submit', () => {
+    spyOn(component, 'onPasswordChange').and.callThrough();
     spyOn(authStorageService, 'getUsername').and.returnValue('xyz');
     formHelper.setMultipleValues({
       oldpassword: 'foo',
@@ -115,6 +78,7 @@ describe('UserPasswordFormComponent', () => {
       new_password: 'bar'
     });
     request.flush({});
+    expect(component.onPasswordChange).toHaveBeenCalled();
     expect(router.navigate).toHaveBeenCalledWith(['/logout']);
   });
 });

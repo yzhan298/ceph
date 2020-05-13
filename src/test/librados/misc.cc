@@ -121,7 +121,7 @@ TEST(LibRadosMiscPool, PoolCreationRace) {
   while (max--) {
     char buf[100];
     rados_completion_t c;
-    rados_aio_create_completion(0, 0, 0, &c);
+    rados_aio_create_completion2(nullptr, nullptr, &c);
     cls.push_back(c);
     rados_aio_read(a, "PoolCreationRaceObj", c, buf, 100, 0);
     cout << "started " << (void*)c << std::endl;
@@ -318,7 +318,12 @@ static void shutdown_racer_func()
   int i;
 
   for (i = 0; i < niter; ++i) {
-    ASSERT_EQ("", connect_cluster(&rad));
+    auto r = connect_cluster(&rad);
+    if (getenv("ALLOW_TIMEOUTS")) {
+      ASSERT_TRUE(r == "" || r == "rados_connect failed with error -110");
+    } else {
+      ASSERT_EQ("", r);
+    }
     rados_shutdown(rad);
   }
 }

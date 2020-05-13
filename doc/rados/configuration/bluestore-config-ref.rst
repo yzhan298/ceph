@@ -127,9 +127,11 @@ When using a :ref:`mixed spinning and solid drive setup
 ``block.db`` logical volume for Bluestore. Generally, ``block.db`` should have
 *as large as possible* logical volumes.
 
-It is recommended that the ``block.db`` size isn't smaller than 4% of
-``block``. For example, if the ``block`` size is 1TB, then ``block.db``
-shouldn't be less than 40GB.
+The general recommendation is to have ``block.db`` size in between 1% to 4%
+of ``block`` size. For RGW workloads, it is recommended that the ``block.db``
+size isn't smaller than 4% of ``block``, because RGW heavily uses it to store its
+metadata. For example, if the ``block`` size is 1TB, then ``block.db`` shouldn't
+be less than 40GB. For RBD workloads, 1% to 2% of ``block`` size is usually enough.
 
 If *not* using a mix of fast and slow devices, it isn't required to create
 separate logical volumes for ``block.db`` (or ``block.wal``). Bluestore will
@@ -139,7 +141,7 @@ automatically manage these within the space of ``block``.
 Automatic Cache Sizing
 ======================
 
-Bluestore can be configured to automatically resize it's caches when tc_malloc
+Bluestore can be configured to automatically resize it's caches when TCMalloc
 is configured as the memory allocator and the ``bluestore_cache_autotune``
 setting is enabled.  This option is currently enabled by default.  Bluestore
 will attempt to keep OSD heap memory usage under a designated target size via

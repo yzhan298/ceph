@@ -21,29 +21,26 @@ describe('NfsFormComponent', () => {
   let httpTesting: HttpTestingController;
   let activatedRoute: ActivatedRouteStub;
 
-  configureTestBed(
-    {
-      declarations: [NfsFormComponent, NfsFormClientComponent],
-      imports: [
-        HttpClientTestingModule,
-        ReactiveFormsModule,
-        RouterTestingModule,
-        SharedModule,
-        ToastrModule.forRoot(),
-        TypeaheadModule.forRoot()
-      ],
-      providers: [
-        {
-          provide: ActivatedRoute,
-          useValue: new ActivatedRouteStub({ cluster_id: undefined, export_id: undefined })
-        },
-        i18nProviders,
-        SummaryService,
-        CephReleaseNamePipe
-      ]
-    },
-    true
-  );
+  configureTestBed({
+    declarations: [NfsFormComponent, NfsFormClientComponent],
+    imports: [
+      HttpClientTestingModule,
+      ReactiveFormsModule,
+      RouterTestingModule,
+      SharedModule,
+      ToastrModule.forRoot(),
+      TypeaheadModule.forRoot()
+    ],
+    providers: [
+      {
+        provide: ActivatedRoute,
+        useValue: new ActivatedRouteStub({ cluster_id: undefined, export_id: undefined })
+      },
+      i18nProviders,
+      SummaryService,
+      CephReleaseNamePipe
+    ]
+  });
 
   beforeEach(() => {
     const summaryService = TestBed.get(SummaryService);
@@ -60,14 +57,11 @@ describe('NfsFormComponent', () => {
     activatedRoute = TestBed.get(ActivatedRoute);
     fixture.detectChanges();
 
-    httpTesting.expectOne('api/summary').flush([]);
-    httpTesting
-      .expectOne('api/nfs-ganesha/daemon')
-      .flush([
-        { daemon_id: 'node1', cluster_id: 'cluster1' },
-        { daemon_id: 'node2', cluster_id: 'cluster1' },
-        { daemon_id: 'node5', cluster_id: 'cluster2' }
-      ]);
+    httpTesting.expectOne('api/nfs-ganesha/daemon').flush([
+      { daemon_id: 'node1', cluster_id: 'cluster1' },
+      { daemon_id: 'node2', cluster_id: 'cluster1' },
+      { daemon_id: 'node5', cluster_id: 'cluster2' }
+    ]);
     httpTesting.expectOne('ui-api/nfs-ganesha/fsals').flush(['CEPH', 'RGW']);
     httpTesting.expectOne('ui-api/nfs-ganesha/cephx/clients').flush(['admin', 'fs', 'rgw']);
     httpTesting.expectOne('ui-api/nfs-ganesha/cephfs/filesystems').flush([{ id: 1, name: 'a' }]);

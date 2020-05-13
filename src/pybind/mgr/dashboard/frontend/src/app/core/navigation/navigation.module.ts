@@ -6,6 +6,7 @@ import { CollapseModule } from 'ngx-bootstrap/collapse';
 import { BsDropdownModule } from 'ngx-bootstrap/dropdown';
 import { PopoverModule } from 'ngx-bootstrap/popover';
 import { TooltipModule } from 'ngx-bootstrap/tooltip';
+import { SimplebarAngularModule } from 'simplebar-angular';
 
 import { AppRoutingModule } from '../../app-routing.module';
 import { SharedModule } from '../../shared/shared.module';
@@ -29,6 +30,7 @@ import { NotificationsComponent } from './notifications/notifications.component'
     TooltipModule.forRoot(),
     AppRoutingModule,
     SharedModule,
+    SimplebarAngularModule,
     RouterModule
   ],
   declarations: [
