@@ -11841,7 +11841,7 @@ retry_pg:
     sdata->shard_lock.unlock();
     osd->service.maybe_inject_dispatch_delay();
     // pg lock held >>> 
-    utime_t pglock_ts1 = ceph_clock_now();
+    //utime_t pglock_ts1 = ceph_clock_now();
     pg->lock();
     osd->service.maybe_inject_dispatch_delay();
     sdata->shard_lock.lock();
@@ -11853,8 +11853,8 @@ retry_pg:
       dout(20) << __func__ << " slot " << token << " no longer there" << dendl;
       // pg lock released <<<
       pg->unlock();
-        utime_t pglock_ts2 = ceph_clock_now();
-        dout(0)<<"### pg_lock lat="<<pglock_ts2-pglock_ts1<<dendl;
+        //utime_t pglock_ts2 = ceph_clock_now();
+        //dout(0)<<"### pg_lock lat="<<pglock_ts2-pglock_ts1<<dendl; // 0.17s
       sdata->shard_lock.unlock();
       handle_oncommits(oncommits);
       return;
@@ -11868,8 +11868,8 @@ retry_pg:
       dout(20) << __func__ << " " << token
                << " nothing queued" << dendl;
       pg->unlock();
-      utime_t pglock_ts2 = ceph_clock_now();
-      dout(0)<<"### pg_lock lat="<<pglock_ts2-pglock_ts1<<dendl;
+      //utime_t pglock_ts2 = ceph_clock_now();
+      //dout(0)<<"### pg_lock lat="<<pglock_ts2-pglock_ts1<<dendl;
       sdata->shard_lock.unlock();
       handle_oncommits(oncommits);
       return;
@@ -11881,8 +11881,8 @@ retry_pg:
                << requeue_seq << ", we raced with _wake_pg_slot"
                << dendl;
       pg->unlock();
-      utime_t pglock_ts2 = ceph_clock_now();
-      dout(0)<<"### pg_lock lat="<<pglock_ts2-pglock_ts1<<dendl;
+      //utime_t pglock_ts2 = ceph_clock_now();
+      //dout(0)<<"### pg_lock lat="<<pglock_ts2-pglock_ts1<<dendl;
       sdata->shard_lock.unlock();
       handle_oncommits(oncommits);
       return;
@@ -11893,8 +11893,8 @@ retry_pg:
       dout(20) << __func__ << " slot " << token << " no longer attached to "
                << pg << dendl;
       pg->unlock();
-      utime_t pglock_ts2 = ceph_clock_now();
-      dout(0)<<"### pg_lock lat="<<pglock_ts2-pglock_ts1<<dendl;
+      //utime_t pglock_ts2 = ceph_clock_now();
+      //dout(0)<<"### pg_lock lat="<<pglock_ts2-pglock_ts1<<dendl;
       goto retry_pg;
     }
   }

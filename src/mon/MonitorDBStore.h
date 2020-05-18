@@ -295,7 +295,7 @@ class MonitorDBStore
 
   int apply_transaction(MonitorDBStore::TransactionRef t) {
     KeyValueDB::Transaction dbt = db->get_transaction();
-
+    //derr<<"###1"<<dendl;
     if (do_dump) {
       if (!g_conf()->mon_debug_dump_json) {
         bufferlist bl;
@@ -315,6 +315,7 @@ class MonitorDBStore
       const Op& op = *it;
       switch (op.type) {
       case Transaction::OP_PUT:
+      //derr<<"###2.1"<<dendl;
 	dbt->set(op.prefix, op.key, op.bl);
 	break;
       case Transaction::OP_ERASE:
@@ -324,6 +325,7 @@ class MonitorDBStore
 	dbt->rm_range_keys(op.prefix, op.key, op.endkey);
 	break;
       case Transaction::OP_COMPACT:
+      //derr<<"###2.2"<<dendl; // never called in my test
 	compact.push_back(make_pair(op.prefix, make_pair(op.key, op.endkey)));
 	break;
       default:
@@ -334,7 +336,9 @@ class MonitorDBStore
     }
     int r = db->submit_transaction_sync(dbt);
     if (r >= 0) {
+      //derr<<"###3"<<dendl;
       while (!compact.empty()) {
+        //derr<<"###4 compact="<<compact.size()<<dendl; // never called in my test
 	if (compact.front().second.first == string() &&
 	    compact.front().second.second == string())
 	  db->compact_prefix_async(compact.front().first);

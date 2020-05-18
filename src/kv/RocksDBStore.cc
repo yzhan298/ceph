@@ -30,6 +30,10 @@ using std::string;
 
 #include "common/debug.h"
 
+#include "common/BackTrace.h"
+#define BACKTRACE() stringstream ss;BackTrace *bt = new BackTrace(1);bt->print(ss);derr << "### backtrace: \n"<< ss.str() << dendl;delete bt;
+
+
 #define dout_context cct
 #define dout_subsys ceph_subsys_rocksdb
 #undef dout_prefix
@@ -211,6 +215,7 @@ static int string2bool(const string &val, bool &b_val)
   
 int RocksDBStore::tryInterpret(const string &key, const string &val, rocksdb::Options &opt)
 {
+  //dout(0)<<"### key="<<key<<dendl;
   if (key == "compaction_threads") {
     std::string err;
     int f = strict_iecstrtoll(val.c_str(), &err);
@@ -1157,9 +1162,11 @@ int RocksDBStore::split_key(rocksdb::Slice in, string *prefix, string *key)
 
 void RocksDBStore::compact()
 {
+  //dout(0)<<"### called"<<dendl; // never called in my test
+  BACKTRACE()
   logger->inc(l_rocksdb_compact);
   rocksdb::CompactRangeOptions options;
-  db->CompactRange(options, default_cf, nullptr, nullptr);
+  db->CompactRange(options, default_cf, nullptr, nullptr); // compact entire database
   for (auto cf : cf_handles) {
     db->CompactRange(
       options,
@@ -1171,9 +1178,12 @@ void RocksDBStore::compact()
 
 void RocksDBStore::compact_thread_entry()
 {
+  //dout(0)<<"###0"<<dendl;
   std::unique_lock l{compact_queue_lock};
   while (!compact_queue_stop) {
+    //dout(0)<<"###1"<<dendl;
     while (!compact_queue.empty()) {
+      //dout(0)<<"### compact queue size = "<<compact_queue.size()<<dendl; // never called in my test
       pair<string,string> range = compact_queue.front();
       compact_queue.pop_front();
       logger->set(l_rocksdb_compact_queue_len, compact_queue.size());

@@ -604,7 +604,7 @@ prepare_conf() {
         debug mgrc = 0
         debug bdev = 0
         debug bluefs = 0
-        debug rocksdb = 0
+        debug rocksdb = 30
 	debug objecter = 0
 
         fsid = $(uuidgen)
@@ -677,10 +677,13 @@ EOF
         bluestore block wal size = 1048576000
         bluestore block wal create = true
 
-	;bluestore rocksdb options = compression=kNoCompression,max_write_buffer_number=8,min_write_buffer_number_to_merge=4,recycle_log_file_num=4,write_buffer_size=1073741824,writable_file_max_buffer_size=0,compaction_readahead_size=8388608,max_background_compactions=2
-	
     ; -ym
-    ;rocksdb_perf = false ;set to true to see rocksdb perf counters 
+    ; default
+    ;compression=kNoCompression,max_write_buffer_number=4,min_write_buffer_number_to_merge=1,recycle_log_file_num=4,write_buffer_size=268435456(256MB),writable_file_max_buffer_size=0,compaction_readahead_size=2097152,max_background_compactions=2
+    ;bluestore rocksdb options = compression=kNoCompression,max_write_buffer_number=4,min_write_buffer_number_to_merge=4,recycle_log_file_num=4,write_buffer_size=2684354560,writable_file_max_buffer_size=0,compaction_readahead_size=2097152,max_background_compactions=2
+    rocksdb_perf = false
+    rocksdb_collect_compaction_stats = false 
+    rocksdb_collect_extended_stats = false
     osd_op_num_shards = 8
     osd_op_num_threads_per_shard = 2
     enable_throttle = false

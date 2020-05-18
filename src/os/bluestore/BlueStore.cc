@@ -46,6 +46,7 @@
 
 #include "common/BackTrace.h"
 #define BACKTRACE() stringstream ss;BackTrace *bt = new BackTrace(1);bt->print(ss);derr << "### backtrace: \n"<< ss.str() << dendl;delete bt;
+#include <fstream>
 
 
 #if defined(WITH_LTTNG)
@@ -14068,6 +14069,11 @@ int BlueStore::queue_transactions(
   Collection *c = static_cast<Collection *>(ch.get()); // get raw pointer to collection
   OpSequencer *osr = c->osr.get();                     // get raw pointer to collection
   dout(10) << __func__ << " ch " << c << " " << c->cid << dendl;
+  
+  // dump file to /tmp
+  /*std::ofstream ofile;
+  ofile.open("/tmp/bs_timestamps.txt",ios::app); // open file for appending
+  ofile << ceph_clock_now()<<"\n";*/
 
   // prepare, create txc for transaction, add txc to oncommit, and return txc
   // include setattr, get_onode, process collections, etc.

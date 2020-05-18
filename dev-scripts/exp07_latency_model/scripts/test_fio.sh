@@ -3,7 +3,7 @@
 # run rbd bench and collect result
 bs="4096"   #"131072"  # block size 
 rw="randwrite"  # io type
-fioruntime=10  # seconds
+fioruntime=30  # seconds
 iototal="400m" # total bytes of io
 qd=48 # workload queue depth
 
@@ -13,9 +13,9 @@ pool="mybench"
 
 single_dump() {
     qdepth=$1
-    dump_state="dump-state-${qdepth}"
+    dump_state="dump-state-${qdepth}.json"
     sudo bin/ceph daemon osd.0 dump_op_pq_state 2>/dev/null > dump_op_pq_state
-    sudo bin/ceph daemon osd.0 perf dump 2>/dev/null > $dump_state.json
+    sudo bin/ceph daemon osd.0 perf dump 2>/dev/null > $dump_state
 	osd_op_in_osd_lat=$(jq ".osd.osd_op_in_osd_lat.avgtime" $dump_state)
 	osd_op_queueing_time=$(jq ".osd.osd_op_queueing_time.avgtime" $dump_state)
 	bluestore_simple_writes_lat=$(jq ".bluestore.bluestore_simple_writes_lat.avgtime" $dump_state) # simple write latency
@@ -48,8 +48,8 @@ printf '%s\n' "bs" "runtime" "qdepth" "osd_lat" "op_queue_lat" "bluestore_simple
 
 	#------------- pre-fill -------------#
 	# pre-fill the image(to eliminate the op_rw)
-	echo pre-fill the image!
-	sudo LD_LIBRARY_PATH="$CEPH_HOME"/build/lib:$LD_LIBRARY_PATH "$FIO_HOME"/fio fio_prefill_rbdimage.fio
+	#echo pre-fill the image!
+	#sudo LD_LIBRARY_PATH="$CEPH_HOME"/build/lib:$LD_LIBRARY_PATH "$FIO_HOME"/fio fio_prefill_rbdimage.fio
 	# reset the perf-counter
 	sudo bin/ceph daemon osd.0 perf reset osd >/dev/null 2>/dev/null
 	sudo echo 3 | sudo tee /proc/sys/vm/drop_caches && sudo sync
@@ -67,6 +67,7 @@ printf '%s\n' "bs" "runtime" "qdepth" "osd_lat" "op_queue_lat" "bluestore_simple
 	sudo bin/ceph daemon osd.0 dump kvq vector	
 	# OSD
 	sudo bin/ceph daemon osd.0 dump opq vector
+	sudo bin/ceph daemon osd.0 dump_objectstore_kv_stats
 	# aggregation
 	single_dump $qd
 	# rbd info
