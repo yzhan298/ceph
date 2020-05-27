@@ -1,0 +1,11 @@
+[prec]
+ioengine=libaio
+group_reporting=1
+filename=/dev/sdc
+direct=1
+rw=write
+bssplit=1MB
+numjobs=1
+iodepth=32
+size=75%
+io_size=960207962112

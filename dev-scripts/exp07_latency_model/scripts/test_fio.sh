@@ -3,7 +3,7 @@
 # run rbd bench and collect result
 bs="4096"   #"131072"  # block size 
 rw="randwrite"  # io type
-fioruntime=30  # seconds
+fioruntime=20  # seconds
 iototal="400m" # total bytes of io
 qd=48 # workload queue depth
 

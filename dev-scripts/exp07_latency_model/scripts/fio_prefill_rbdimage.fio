@@ -6,8 +6,8 @@ rbdname=image1
 rw=randwrite
 bs=4096
 time_based=1
-runtime=20
+runtime=1200
 direct = 1
 
 [fio-write]
-iodepth=128
+iodepth=48
