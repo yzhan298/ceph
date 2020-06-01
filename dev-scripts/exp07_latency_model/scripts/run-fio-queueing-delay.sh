@@ -48,7 +48,7 @@ for qd in 48; do
 	#------------- start cluster -------------#
 	./start_ceph.sh
 	sudo bin/ceph osd pool create mybench 128 128
-	sudo bin/rbd create --size=1G mybench/image1
+	sudo bin/rbd create --size=40G mybench/image1
 	sudo bin/ceph daemon osd.0 config show | grep bluestore_rocksdb
 	sleep 5 # warmup
 
@@ -101,9 +101,9 @@ done
 sudo mv dump* ${dn}
 sudo cp ceph.conf ${dn}
 sudo cp fio_write.fio ${dn}
-sudo cp ./data/plot.py ${dn}
+sudo cp plot-bluestore-lat.py ${dn}
 sudo mv ${dn} ./data
 echo DONE!
 #done
 
-cd ./data/${dn} && sudo python3 plot.py
+cd ./data/${dn} && sudo python3 plot-bluestore-lat.py
