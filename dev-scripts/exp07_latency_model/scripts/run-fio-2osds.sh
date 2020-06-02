@@ -3,7 +3,7 @@
 # run rbd bench and collect result
 bs="4096"   #"131072"  # block size 
 rw="randwrite"  # io type
-fioruntime=120  # seconds
+fioruntime=300  # seconds
 iototal="400m" # total bytes of io
 #qd=48 # workload queue depth
 
@@ -42,9 +42,9 @@ for qd in 48; do
 	#------------- pre-fill -------------#    
 	# pre-fill the image(to eliminate the op_rw)
 	#echo pre-fill the image!
-	#sudo LD_LIBRARY_PATH="$CEPH_HOME"/build/lib:$LD_LIBRARY_PATH "$FIO_HOME"/fio fio_prefill_rbdimage.fio
+	sudo LD_LIBRARY_PATH="$CEPH_HOME"/build/lib:$LD_LIBRARY_PATH "$FIO_HOME"/fio fio_prefill_rbdimage.fio
 	#------------- clear debug files and reset counters -------------#
-	#sudo rm /tmp/flush_job_timestamps.txt  /tmp/compact_job_timestamps.txt
+	sudo rm /tmp/flush_job_timestamps.csv  /tmp/compact_job_timestamps.csv
 	# reset the perf-counter
 	sudo echo 3 | sudo tee /proc/sys/vm/drop_caches && sudo sync
 	for o in $(seq 0 $(expr $osd_num - 1)) ; do
@@ -85,9 +85,17 @@ done
 
 # move everything to a directory
 sudo mv dump* ${dn}
+sudo cp plot-bluestore-lat.py osddump1
+for o in $(seq 0 $(expr $osd_num - 1)) ; do
+	sudo cp plot-bluestore-lat.py osddump${o}
+done
 sudo mv osddump* ${dn}
 sudo cp ceph.conf ${dn}
 sudo cp fio_write.fio ${dn}
+sudo cp plot-bluestore-lat.py ${dn}
 sudo mv ${dn} ./data
 echo DONE!
 #done
+for o in $(seq 0 $(expr $osd_num - 1)) ; do
+	sudo python3 ./osddump${o}/plot-bluestore-lat.py
+done

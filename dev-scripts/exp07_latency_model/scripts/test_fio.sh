@@ -3,7 +3,7 @@
 # run rbd bench and collect result
 bs="4096"   #"131072"  # block size 
 rw="randwrite"  # io type
-fioruntime=20  # seconds
+fioruntime=60  # seconds
 iototal="400m" # total bytes of io
 qd=48 # workload queue depth
 
@@ -60,7 +60,7 @@ printf '%s\n' "bs" "runtime" "qdepth" "osd_lat" "op_queue_lat" "bluestore_simple
 	#------------- benchmark -------------#
     echo benchmark starts!
 	echo $qd
-    sudo LD_LIBRARY_PATH="$CEPH_HOME"/build/lib:$LD_LIBRARY_PATH "$FIO_HOME"/fio fio_write.fio | tee dump_fio_result
+    sudo LD_LIBRARY_PATH="$CEPH_HOME"/build/lib:$LD_LIBRARY_PATH "$FIO_HOME"/fio fio_write.fio #| tee dump_fio_result
 
 	# dump internal data with admin socket
 	# BlueStore

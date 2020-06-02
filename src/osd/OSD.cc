@@ -10630,8 +10630,8 @@ void OSD::enqueue_op(spg_t pg, OpRequestRef &&op, epoch_t epoch)
           unique_ptr<OpQueueItem::OpQueueable>(new PGOpItem(pg, std::move(op))),
           cost, priority, stamp, owner, epoch)); // push_back
   auto opq_size = op_shardedwq.get_size_of_all_shards();
-  opq_vec.push_back(opq_size);
-  logger->set(l_osd_op_queue_size, opq_size);
+  //opq_vec.push_back(opq_size);
+  //logger->set(l_osd_op_queue_size, opq_size);
 }
 
 void OSD::enqueue_peering_evt(spg_t pgid, PGPeeringEventRef evt)
