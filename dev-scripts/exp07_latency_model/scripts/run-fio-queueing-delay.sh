@@ -101,6 +101,7 @@ done
 sudo mv dump* ${dn}
 sudo cp ceph.conf ${dn}
 sudo cp fio_write.fio ${dn}
+sudo cp start_ceph.sh ${dn}
 sudo cp plot-bluestore-lat.py ${dn}
 sudo mv ${dn} ./data
 echo DONE!
