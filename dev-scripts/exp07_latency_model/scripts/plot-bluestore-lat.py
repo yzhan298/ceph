@@ -194,7 +194,7 @@ tmpf4.close()
 
     
 # plot both blustore latency and compacion
-p0 = plt.figure()
+p0 = plt.figure(figsize=(28, 16), dpi= 80, facecolor='w', edgecolor='k')
 ax0 = p0.add_subplot(111)
 ax0.plot(x_l0_timestamps, y_l0_dummy, label='L0 compaction',marker='^', c='g', linestyle='')
 ax0.plot(x_l1_timestamps, y_l1_dummy, label='>=L1 compaction',marker='d', c='r', linestyle='')
@@ -203,28 +203,28 @@ ax0.set(xlabel='time stamps', ylabel='latency [secs]', title='BlueStore Latency 
 ax0.figure.savefig("p0-bslat.pdf", bbox_inches='tight')
 
 # plot time series of big spikes
-p11 = plt.figure() # big spikes
+p11 = plt.figure(figsize=(28, 16), dpi= 80, facecolor='w', edgecolor='k') # big spikes
 ax11 = p11.add_subplot(111)
 ax11.set_ylim(0,0.2)
 ax11.plot(big_spikes_ts, big_spikes_lat, label='big spikes', marker='s', c='b', linestyle='')
 ax11.set(xlabel='Timestamps', ylabel='Latency[s]', title='Time Series of BlueStore Latency Big Spikes')
 ax11.figure.savefig("p11-bslat-big-spikes.pdf", bbox_inches='tight')
 # plot time series of NON-big-spikes
-p12 = plt.figure() # NON-big-spikes
+p12 = plt.figure(figsize=(28, 16), dpi= 80, facecolor='w', edgecolor='k') # NON-big-spikes
 ax12 = p12.add_subplot(111)
 ax12.set_ylim(0,0.2)
 ax12.plot(non_big_spikes_ts, non_big_spikes_lat, label='NON-big spikes')
 ax12.set(xlabel='Timestamps', ylabel='Latency[s]', title='Time Series of BlueStore Latency NON-Big-Spikes')
 ax12.figure.savefig("p12-bslat-non-big-spikes.pdf", bbox_inches='tight')
 # plot time series of small spikes
-p21 = plt.figure() # small spikes
+p21 = plt.figure(figsize=(28, 16), dpi= 80, facecolor='w', edgecolor='k') # small spikes
 ax21 = p21.add_subplot(111)
 ax21.set_ylim(0,0.2)
 ax21.plot(small_spikes_ts, small_spikes_lat, label='small spikes', marker='s', c='g', linestyle='')
 ax21.set(xlabel='Timestamps', ylabel='Latency[s]', title='Time Series of BlueStore Latency Small Spikes')
 ax21.figure.savefig("p21-bslat-small-spikes.pdf", bbox_inches='tight')
 # plot time series of NON-spikes
-p22 = plt.figure() # NON-spikes
+p22 = plt.figure(figsize=(28, 16), dpi= 80, facecolor='w', edgecolor='k') # NON-spikes
 ax22 = p22.add_subplot(111)
 ax22.set_ylim(0,0.2)
 ax22.plot(non_spikes_ts, non_spikes_lat, label='NON-spikes')

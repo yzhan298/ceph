@@ -46,7 +46,8 @@ for qd in 48; do
 	sudo rm /tmp/flush_job_timestamps.csv  /tmp/compact_job_timestamps.csv
 	
 	#------------- start cluster -------------#
-	./start_ceph.sh
+	#./start_ceph.sh # this is normal Ceph cluster on HDD/SSD
+	./start_ceph_ramdisk.sh # this is Ceph cluster on ramdisk
 	sudo bin/ceph osd pool create mybench 128 128
 	sudo bin/rbd create --size=1G mybench/image1
 	sudo bin/ceph daemon osd.0 config show | grep bluestore_rocksdb
