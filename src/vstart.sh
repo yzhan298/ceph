@@ -604,7 +604,7 @@ prepare_conf() {
         debug mgrc = 0
         debug bdev = 0
         debug bluefs = 0
-        debug rocksdb = 30
+        debug rocksdb = 0
 	debug objecter = 0
 
         fsid = $(uuidgen)

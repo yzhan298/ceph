@@ -1,0 +1,14 @@
+[baseline]
+ioengine=libaio
+group_reporting=1
+filename=/dev/sdn
+direct=1
+rw=randwrite
+;bssplit=4KB
+bs=4096
+numjobs=1
+iodepth=48
+time_based=1
+runtime=600
+;io_size=960207962112
+write_lat_log=ssd_baseline
