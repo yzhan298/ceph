@@ -14,8 +14,8 @@
 	branch = v3-ceph
 [submodule "src/rocksdb"]
 	path = src/rocksdb
-	url = https://github.com/ceph/rocksdb
-	ignore = dirty
+	url = https://github.com/yzhan298/rocksdb
+	branch = dump_compact
 [submodule "ceph-erasure-code-corpus"]
 	path = ceph-erasure-code-corpus
 	url = https://github.com/ceph/ceph-erasure-code-corpus.git
